@@ -6,6 +6,7 @@
   <title>Festival Color</title>
   <link rel="stylesheet" href="style.css" />
   <link rel="icon" href="data:," />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 
 <body>
@@ -55,14 +56,11 @@
       signOut
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
-    import {
-      getStorage,
-      ref as storageRef,
-      uploadBytesResumable,
-      getDownloadURL
-    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
-
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbyvc7zNAQWQXH17Idlc6FtsZDn8rIF6HwQGc7tkshYHiIzznSGcI6-wihAu5Ur51JmnKw/exec";
+    const GOOGLE_CLIENT_ID = "819550776861-btle4ghnr6lb560p3oua2akksiuvbm3o.apps.googleusercontent.com";
+    const GOOGLE_DRIVE_FOLDER_ID = "1r7rKCri1my5jNO2OMV_4G3B9gos8kSAG";
+    const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+    const CHUNK_SIZE = 2 * 1024 * 1024;
+    const MAX_VIDEO_SECONDS = 15;
 
     const firebaseConfig = {
       apiKey: "AIzaSyC7oudfhfJC7zssUb0KR98tFy_lxvVT0bI",
@@ -77,7 +75,6 @@
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
-    const storage = getStorage(app);
 
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ hd: "sankogakuen.jp" });
@@ -107,6 +104,9 @@
     let mediaRecorder = null;
     let recordedChunks = [];
     let currentMimeType = '';
+    let tokenClient = null;
+    let accessToken = '';
+    let recordTimerId = 0;
 
     loginBtn.addEventListener('click', async () => {
       loginMessage.textContent = 'ログイン中...';
@@ -119,6 +119,7 @@
     });
 
     logoutBtn.addEventListener('click', async () => {
+      accessToken = '';
       await signOut(auth);
     });
 
@@ -135,7 +136,7 @@
       const email = user.email || '';
 
       if (!email.endsWith('@sankogakuen.jp')) {
-        alert('学校アカウント（@sankogakuen.jp）でログインしてください');
+        alert('学校アカウント（sankogakuen.jp）でログインしてください');
         await signOut(auth);
         return;
       }
@@ -143,10 +144,11 @@
       const studentId = email.split('@')[0];
       localStorage.setItem('festival_student_id', studentId);
 
-      studentIdText.textContent = `ID：${studentId}`;
+      studentIdText.textContent = `ID: ${studentId}`;
       loginPanel.classList.add('hidden');
       mainPanel.classList.remove('hidden');
       openCameraBtn.classList.remove('hidden');
+      loginMessage.textContent = '';
     });
 
     function applyColor(session) {
@@ -158,7 +160,7 @@
       colorText.textContent = color;
 
       status.textContent = session.isPlaying
-        ? `受信中：${session.sequenceName || 'manual'}`
+        ? `受信中: ${session.sequenceName || 'manual'}`
         : '停止中';
     }
 
@@ -184,6 +186,216 @@
       return { studentId, fileNo, fileName, type };
     }
 
+    function assertDriveSettings() {
+      if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.includes('ここに')) {
+        throw new Error('GOOGLE_CLIENT_IDが未設定です');
+      }
+
+      if (!GOOGLE_DRIVE_FOLDER_ID || GOOGLE_DRIVE_FOLDER_ID.includes('ここに')) {
+        throw new Error('GOOGLE_DRIVE_FOLDER_IDが未設定です');
+      }
+    }
+
+    function waitForGoogleIdentity() {
+      return new Promise((resolve, reject) => {
+        const startedAt = Date.now();
+
+        const timerId = setInterval(() => {
+          if (window.google?.accounts?.oauth2) {
+            clearInterval(timerId);
+            resolve();
+            return;
+          }
+
+          if (Date.now() - startedAt > 10000) {
+            clearInterval(timerId);
+            reject(new Error('Google認証ライブラリの読み込みに失敗しました'));
+          }
+        }, 100);
+      });
+    }
+
+    async function getGoogleAccessToken() {
+      assertDriveSettings();
+      await waitForGoogleIdentity();
+
+      if (accessToken) return accessToken;
+
+      return new Promise((resolve, reject) => {
+        tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: GOOGLE_CLIENT_ID,
+          scope: GOOGLE_DRIVE_SCOPE,
+          hint: auth.currentUser?.email || undefined,
+          callback: response => {
+            if (response.error) {
+              reject(new Error(response.error));
+              return;
+            }
+
+            accessToken = response.access_token;
+            resolve(accessToken);
+          }
+        });
+
+        tokenClient.requestAccessToken({ prompt: '' });
+      });
+    }
+
+    async function refreshGoogleAccessToken() {
+      accessToken = '';
+      return getGoogleAccessToken();
+    }
+
+    async function startDriveResumableSession(blob, fileInfo, mimeType, token) {
+      const metadata = {
+        name: fileInfo.fileName,
+        mimeType,
+        parents: [GOOGLE_DRIVE_FOLDER_ID],
+        description: JSON.stringify({
+          studentId: fileInfo.studentId,
+          fileNo: fileInfo.fileNo,
+          type: fileInfo.type,
+          createdAt: new Date().toISOString()
+        })
+      };
+
+      const url = [
+        'https://www.googleapis.com/upload/drive/v3/files',
+        '?uploadType=resumable',
+        '&supportsAllDrives=true',
+        '&fields=id,name,mimeType,size,webViewLink,webContentLink'
+      ].join('');
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json; charset=UTF-8',
+          'X-Upload-Content-Type': mimeType,
+          'X-Upload-Content-Length': String(blob.size)
+        },
+        body: JSON.stringify(metadata)
+      });
+
+      if (res.status === 401) {
+        const newToken = await refreshGoogleAccessToken();
+        return startDriveResumableSession(blob, fileInfo, mimeType, newToken);
+      }
+
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+
+      const uploadUrl = res.headers.get('Location');
+
+      if (!uploadUrl) {
+        throw new Error('DriveのアップロードURLを取得できませんでした');
+      }
+
+      return uploadUrl;
+    }
+
+    async function queryDriveUploadOffset(uploadUrl, totalSize) {
+      const res = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Range': `bytes */${totalSize}`
+        }
+      });
+
+      if (res.status === 308) {
+        const range = res.headers.get('Range');
+        if (!range) return 0;
+
+        const match = range.match(/bytes=0-(\d+)/);
+        return match ? Number(match[1]) + 1 : 0;
+      }
+
+      if (res.ok) return totalSize;
+
+      throw new Error(await res.text());
+    }
+
+    async function uploadChunkWithRetry(uploadUrl, chunk, start, end, totalSize) {
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const res = await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': chunk.type || 'application/octet-stream',
+              'Content-Range': `bytes ${start}-${end - 1}/${totalSize}`
+            },
+            body: chunk
+          });
+
+          if (res.status === 308) {
+            const range = res.headers.get('Range');
+            const match = range?.match(/bytes=0-(\d+)/);
+            return {
+              done: false,
+              nextStart: match ? Number(match[1]) + 1 : end
+            };
+          }
+
+          if (res.status === 200 || res.status === 201) {
+            return {
+              done: true,
+              file: await res.json()
+            };
+          }
+
+          if (res.status >= 500 || res.status === 429) {
+            await sleep(800 * attempt);
+            const nextStart = await queryDriveUploadOffset(uploadUrl, totalSize);
+            return { done: false, nextStart };
+          }
+
+          throw new Error(await res.text());
+        } catch (error) {
+          if (attempt === 3) throw error;
+          await sleep(800 * attempt);
+        }
+      }
+
+      throw new Error('アップロードの再試行回数を超えました');
+    }
+
+    async function uploadBlobToGoogleDrive(blob, fileInfo, mimeType) {
+      uploadStatus.textContent = `アップロード準備中: ${fileInfo.fileName}`;
+      cameraStatus.textContent = 'Google Driveへ接続中...';
+
+      const token = await getGoogleAccessToken();
+      const uploadUrl = await startDriveResumableSession(blob, fileInfo, mimeType, token);
+      let start = 0;
+
+      while (start < blob.size) {
+        const end = Math.min(start + CHUNK_SIZE, blob.size);
+        const chunk = blob.slice(start, end, mimeType);
+
+        const result = await uploadChunkWithRetry(uploadUrl, chunk, start, end, blob.size);
+
+        if (result.done) {
+          const link = result.file.webViewLink || `https://drive.google.com/file/d/${result.file.id}/view`;
+          uploadStatus.innerHTML =
+            `アップロード完了: <a href="${link}" target="_blank" rel="noopener">${fileInfo.fileName}</a>`;
+          cameraStatus.textContent = `保存完了: ${fileInfo.fileName}`;
+          return result.file;
+        }
+
+        start = result.nextStart;
+
+        const percent = Math.min(99, Math.round((start / blob.size) * 100));
+        uploadStatus.textContent = `アップロード中: ${fileInfo.fileName} / ${percent}%`;
+        cameraStatus.textContent = `${percent}%`;
+      }
+
+      throw new Error('アップロード完了レスポンスを取得できませんでした');
+    }
+
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
     async function openCamera() {
       try {
         cameraStream = await navigator.mediaDevices.getUserMedia({
@@ -201,7 +413,7 @@
         cameraStatus.textContent = 'カメラ起動中';
       } catch (error) {
         console.error(error);
-        alert(`カメラ起動失敗：${error.name}`);
+        alert(`カメラ起動失敗: ${error.name}`);
       }
     }
 
@@ -209,6 +421,8 @@
       if (mediaRecorder && mediaRecorder.state === 'recording') {
         mediaRecorder.stop();
       }
+
+      clearTimeout(recordTimerId);
 
       if (cameraStream) {
         cameraStream.getTracks().forEach(track => track.stop());
@@ -239,90 +453,6 @@
       return '';
     }
 
-    async function saveUrlToSpreadsheet(data) {
-      const res = await fetch(GAS_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8'
-        },
-        body: JSON.stringify({
-          mode: 'recordUrl',
-          ...data
-        })
-      });
-
-      const result = await res.json();
-
-      if (!result.success) {
-        throw new Error(result.message || 'Spreadsheet記録失敗');
-      }
-
-      return result;
-    }
-
-    async function uploadBlobToFirebaseStorage(blob, fileInfo, mimeType) {
-      uploadStatus.textContent = `アップロード準備中：${fileInfo.fileName}`;
-      cameraStatus.textContent = 'Storageへアップロード中...';
-
-      const storagePath = `uploads/${fileInfo.studentId}/${fileInfo.fileName}`;
-      const fileRef = storageRef(storage, storagePath);
-
-      return new Promise((resolve, reject) => {
-        const uploadTask = uploadBytesResumable(fileRef, blob, {
-          contentType: mimeType
-        });
-
-        uploadTask.on(
-          'state_changed',
-          snapshot => {
-            const percent = Math.round(
-              (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-            );
-
-            uploadStatus.textContent =
-              `アップロード中：${fileInfo.fileName} / ${percent}%`;
-
-            cameraStatus.textContent = `${percent}%`;
-          },
-          error => {
-            console.error(error);
-            uploadStatus.textContent = `アップロード失敗：${error.message}`;
-            cameraStatus.textContent = 'アップロード失敗';
-            alert(`アップロード失敗：${error.message}`);
-            reject(error);
-          },
-          async () => {
-            try {
-              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-
-              await saveUrlToSpreadsheet({
-                studentId: fileInfo.studentId,
-                fileNo: fileInfo.fileNo,
-                type: fileInfo.type,
-                fileName: fileInfo.fileName,
-                storagePath,
-                downloadURL,
-                mimeType,
-                size: blob.size
-              });
-
-              uploadStatus.innerHTML =
-                `アップロード完了：<a href="${downloadURL}" target="_blank" rel="noopener">開く</a>`;
-
-              cameraStatus.textContent = `保存完了：${fileInfo.fileName}`;
-              resolve(downloadURL);
-
-            } catch (error) {
-              console.error(error);
-              uploadStatus.textContent = `記録失敗：${error.message}`;
-              cameraStatus.textContent = 'Spreadsheet記録失敗';
-              reject(error);
-            }
-          }
-        );
-      });
-    }
-
     async function takePhoto() {
       if (!cameraStream) {
         alert('先にカメラを起動してください');
@@ -349,9 +479,17 @@
           return;
         }
 
-        const fileInfo = createFileInfo('png', 'photo');
-        await uploadBlobToFirebaseStorage(blob, fileInfo, 'image/png');
-      }, 'image/png');
+        const fileInfo = createFileInfo('jpg', 'photo');
+
+        try {
+          await uploadBlobToGoogleDrive(blob, fileInfo, 'image/jpeg');
+        } catch (error) {
+          console.error(error);
+          uploadStatus.textContent = `アップロード失敗: ${error.message}`;
+          cameraStatus.textContent = 'アップロード失敗';
+          alert(`アップロード失敗: ${error.message}`);
+        }
+      }, 'image/jpeg', 0.86);
     }
 
     function startRecord() {
@@ -374,7 +512,9 @@
       }
 
       mediaRecorder = new MediaRecorder(cameraStream, {
-        mimeType: currentMimeType
+        mimeType: currentMimeType,
+        videoBitsPerSecond: 900000,
+        audioBitsPerSecond: 64000
       });
 
       mediaRecorder.ondataavailable = event => {
@@ -384,6 +524,8 @@
       };
 
       mediaRecorder.onstop = async () => {
+        clearTimeout(recordTimerId);
+
         const blob = new Blob(recordedChunks, {
           type: currentMimeType
         });
@@ -396,14 +538,27 @@
         const ext = currentMimeType.includes('mp4') ? 'mp4' : 'webm';
         const fileInfo = createFileInfo(ext, 'video');
 
-        await uploadBlobToFirebaseStorage(blob, fileInfo, currentMimeType);
+        try {
+          await uploadBlobToGoogleDrive(blob, fileInfo, currentMimeType);
+        } catch (error) {
+          console.error(error);
+          uploadStatus.textContent = `アップロード失敗: ${error.message}`;
+          cameraStatus.textContent = 'アップロード失敗';
+          alert(`アップロード失敗: ${error.message}`);
+        }
       };
 
       mediaRecorder.start(1000);
 
       recordVideoBtn.disabled = true;
       stopRecordBtn.disabled = false;
-      cameraStatus.textContent = '録画中...';
+      cameraStatus.textContent = `録画中...最大${MAX_VIDEO_SECONDS}秒`;
+
+      recordTimerId = setTimeout(() => {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+          stopRecord();
+        }
+      }, MAX_VIDEO_SECONDS * 1000);
     }
 
     function stopRecord() {
@@ -411,6 +566,7 @@
         mediaRecorder.stop();
       }
 
+      clearTimeout(recordTimerId);
       recordVideoBtn.disabled = false;
       stopRecordBtn.disabled = true;
     }
