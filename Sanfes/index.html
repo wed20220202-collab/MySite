@@ -11,7 +11,6 @@
 <body>
   <div id="colorStage"></div>
 
-  <!-- ログイン画面 -->
   <div id="loginPanel" class="login-panel">
     <h1>San Festival</h1>
     <p>学校アカウントでログインしてください</p>
@@ -19,7 +18,6 @@
     <p id="loginMessage"></p>
   </div>
 
-  <!-- 演出画面 -->
   <div id="mainPanel" class="participant-ui hidden">
     <h1>FESTIVAL COLOR</h1>
     <p id="studentIdText">未ログイン</p>
@@ -29,18 +27,16 @@
     <button id="logoutBtn">ログアウト</button>
   </div>
 
-  <!-- カメラボタン -->
   <button id="openCamera" class="camera-fab hidden">📷</button>
 
-  <!-- 右下ミニカメラ -->
   <div id="miniCamera" class="mini-camera hidden">
     <video id="cameraPreview" autoplay playsinline muted></video>
 
     <div class="mini-controls">
-      <button id="takePhoto" title="写真">📸</button>
-      <button id="recordVideo" title="録画開始">●</button>
-      <button id="stopRecord" title="録画停止" disabled>■</button>
-      <button id="closeCamera" title="閉じる">×</button>
+      <button id="takePhoto">📸</button>
+      <button id="recordVideo">●</button>
+      <button id="stopRecord" disabled>■</button>
+      <button id="closeCamera">×</button>
     </div>
 
     <p id="cameraStatus">カメラ待機中</p>
@@ -59,6 +55,13 @@
       signOut
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
+    import {
+      getStorage,
+      ref as storageRef,
+      uploadBytesResumable,
+      getDownloadURL
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
+
     const GAS_URL = "https://script.google.com/macros/s/AKfycbwrlsoRSEY3l-f9EDWdBeCgAkMAd4LRwSPt9ji4TSCrybPyK7_OF0LbZT8xTN8c_yaE7w/exec";
 
     const firebaseConfig = {
@@ -74,14 +77,12 @@
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
-    const provider = new GoogleAuthProvider();
+    const storage = getStorage(app);
 
-    provider.setCustomParameters({
-      hd: "sankogakuen.jp"
-    });
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ hd: "sankogakuen.jp" });
 
     const stage = document.getElementById('colorStage');
-
     const loginPanel = document.getElementById('loginPanel');
     const mainPanel = document.getElementById('mainPanel');
     const loginBtn = document.getElementById('loginBtn');
@@ -109,7 +110,6 @@
 
     loginBtn.addEventListener('click', async () => {
       loginMessage.textContent = 'ログイン中...';
-
       try {
         await signInWithPopup(auth, provider);
       } catch (error) {
@@ -125,12 +125,9 @@
     onAuthStateChanged(auth, async user => {
       if (!user) {
         localStorage.removeItem('festival_student_id');
-
         loginPanel.classList.remove('hidden');
         mainPanel.classList.add('hidden');
         openCameraBtn.classList.add('hidden');
-        loginMessage.textContent = '';
-
         closeCamera();
         return;
       }
@@ -144,7 +141,6 @@
       }
 
       const studentId = email.split('@')[0];
-
       localStorage.setItem('festival_student_id', studentId);
 
       studentIdText.textContent = `ID：${studentId}`;
@@ -157,7 +153,6 @@
       if (!session || !session.color) return;
 
       const color = session.color;
-
       stage.style.background = color;
       document.body.style.background = color;
       colorText.textContent = color;
@@ -186,32 +181,7 @@
       const fileNo = getNextFileNumber();
       const fileName = `${studentId}_${fileNo}.${ext}`;
 
-      return {
-        studentId,
-        fileNo,
-        fileName,
-        type
-      };
-    }
-
-    function getCameraErrorMessage(error) {
-      if (error.name === 'NotAllowedError') {
-        return 'カメラ・マイクが許可されていません';
-      }
-
-      if (error.name === 'NotFoundError') {
-        return 'カメラが見つかりません';
-      }
-
-      if (error.name === 'NotReadableError') {
-        return '他のアプリがカメラを使用中です';
-      }
-
-      if (error.name === 'OverconstrainedError') {
-        return '指定したカメラ設定に対応していません';
-      }
-
-      return `カメラエラー：${error.name}`;
+      return { studentId, fileNo, fileName, type };
     }
 
     async function openCamera() {
@@ -219,8 +189,9 @@
         cameraStream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
+            width: { ideal: 640 },
+            height: { ideal: 360 },
+            frameRate: { ideal: 15, max: 24 }
           },
           audio: true
         });
@@ -230,21 +201,7 @@
         cameraStatus.textContent = 'カメラ起動中';
       } catch (error) {
         console.error(error);
-
-        try {
-          cameraStream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: true
-          });
-
-          cameraPreview.srcObject = cameraStream;
-          miniCamera.classList.remove('hidden');
-          cameraStatus.textContent = 'カメラ起動中';
-        } catch (retryError) {
-          console.error(retryError);
-          alert(getCameraErrorMessage(retryError));
-          cameraStatus.textContent = retryError.name;
-        }
+        alert(`カメラ起動失敗：${error.name}`);
       }
     }
 
@@ -260,10 +217,8 @@
 
       cameraPreview.srcObject = null;
       miniCamera.classList.add('hidden');
-
       recordVideoBtn.disabled = false;
       stopRecordBtn.disabled = true;
-
       cameraStatus.textContent = 'カメラ停止';
     }
 
@@ -278,71 +233,94 @@
       ];
 
       for (const type of types) {
-        if (MediaRecorder.isTypeSupported(type)) {
-          return type;
-        }
+        if (MediaRecorder.isTypeSupported(type)) return type;
       }
 
       return '';
     }
 
-    function blobToBase64(blob) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-
-        reader.onloadend = () => {
-          const result = reader.result;
-          const base64 = result.split(',')[1];
-          resolve(base64);
-        };
-
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
+    async function saveUrlToSpreadsheet(data) {
+      const res = await fetch(GAS_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8'
+        },
+        body: JSON.stringify({
+          mode: 'recordUrl',
+          ...data
+        })
       });
+
+      const result = await res.json();
+
+      if (!result.success) {
+        throw new Error(result.message || 'Spreadsheet記録失敗');
+      }
+
+      return result;
     }
 
-    async function uploadBlobToDrive(blob, fileInfo, mimeType) {
-      uploadStatus.textContent = `アップロード中：${fileInfo.fileName}`;
-      cameraStatus.textContent = 'アップロード中...';
+    async function uploadBlobToFirebaseStorage(blob, fileInfo, mimeType) {
+      uploadStatus.textContent = `アップロード準備中：${fileInfo.fileName}`;
+      cameraStatus.textContent = 'Storageへアップロード中...';
 
-      try {
-        const base64 = await blobToBase64(blob);
+      const storagePath = `uploads/${fileInfo.studentId}/${fileInfo.fileName}`;
+      const fileRef = storageRef(storage, storagePath);
 
-        const payload = {
-          studentId: fileInfo.studentId,
-          fileNo: fileInfo.fileNo,
-          fileName: fileInfo.fileName,
-          type: fileInfo.type,
-          mimeType,
-          base64
-        };
-
-        const res = await fetch(GAS_URL, {
-          method: 'POST',
-          body: JSON.stringify(payload)
+      return new Promise((resolve, reject) => {
+        const uploadTask = uploadBytesResumable(fileRef, blob, {
+          contentType: mimeType
         });
 
-        const result = await res.json();
+        uploadTask.on(
+          'state_changed',
+          snapshot => {
+            const percent = Math.round(
+              (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+            );
 
-        if (!result.success) {
-          throw new Error(result.message || 'アップロード失敗');
-        }
+            uploadStatus.textContent =
+              `アップロード中：${fileInfo.fileName} / ${percent}%`;
 
-        uploadStatus.innerHTML = `
-          アップロード完了：
-          <a href="${result.driveUrl}" target="_blank" rel="noopener">開く</a>
-        `;
+            cameraStatus.textContent = `${percent}%`;
+          },
+          error => {
+            console.error(error);
+            uploadStatus.textContent = `アップロード失敗：${error.message}`;
+            cameraStatus.textContent = 'アップロード失敗';
+            alert(`アップロード失敗：${error.message}`);
+            reject(error);
+          },
+          async () => {
+            try {
+              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
 
-        cameraStatus.textContent = `保存完了：${fileInfo.fileName}`;
+              await saveUrlToSpreadsheet({
+                studentId: fileInfo.studentId,
+                fileNo: fileInfo.fileNo,
+                type: fileInfo.type,
+                fileName: fileInfo.fileName,
+                storagePath,
+                downloadURL,
+                mimeType,
+                size: blob.size
+              });
 
-        return result;
+              uploadStatus.innerHTML =
+                `アップロード完了：<a href="${downloadURL}" target="_blank" rel="noopener">開く</a>`;
 
-      } catch (error) {
-        console.error(error);
-        uploadStatus.textContent = `アップロード失敗：${error.message}`;
-        cameraStatus.textContent = 'アップロード失敗';
-        alert(`アップロード失敗：${error.message}`);
-      }
+              cameraStatus.textContent = `保存完了：${fileInfo.fileName}`;
+              resolve(downloadURL);
+
+            } catch (error) {
+              console.error(error);
+              uploadStatus.textContent = `記録失敗：${error.message}`;
+              cameraStatus.textContent = 'Spreadsheet記録失敗';
+              reject(error);
+            }
+          }
+        );
+      });
     }
 
     async function takePhoto() {
@@ -355,7 +333,7 @@
       const h = cameraPreview.videoHeight;
 
       if (!w || !h) {
-        alert('カメラ映像の取得中です。少し待ってから撮影してください。');
+        alert('カメラ映像の取得中です。少し待ってください');
         return;
       }
 
@@ -367,13 +345,12 @@
 
       photoCanvas.toBlob(async blob => {
         if (!blob) {
-          alert('写真の生成に失敗しました');
+          alert('写真生成に失敗しました');
           return;
         }
 
         const fileInfo = createFileInfo('png', 'photo');
-
-        await uploadBlobToDrive(blob, fileInfo, 'image/png');
+        await uploadBlobToFirebaseStorage(blob, fileInfo, 'image/png');
       }, 'image/png');
     }
 
@@ -384,7 +361,7 @@
       }
 
       if (!window.MediaRecorder) {
-        alert('このブラウザはWeb内録画に対応していません');
+        alert('このブラウザはWeb録画に対応していません');
         return;
       }
 
@@ -396,25 +373,14 @@
         return;
       }
 
-      try {
-        mediaRecorder = new MediaRecorder(cameraStream, {
-          mimeType: currentMimeType
-        });
-      } catch (error) {
-        console.error(error);
-        alert(`録画開始に失敗しました：${error.name}`);
-        return;
-      }
+      mediaRecorder = new MediaRecorder(cameraStream, {
+        mimeType: currentMimeType
+      });
 
       mediaRecorder.ondataavailable = event => {
         if (event.data && event.data.size > 0) {
           recordedChunks.push(event.data);
         }
-      };
-
-      mediaRecorder.onerror = event => {
-        console.error(event);
-        alert('録画中にエラーが発生しました');
       };
 
       mediaRecorder.onstop = async () => {
@@ -424,21 +390,20 @@
 
         if (blob.size === 0) {
           alert('動画データが作成されませんでした');
-          cameraStatus.textContent = '動画データなし';
           return;
         }
 
         const ext = currentMimeType.includes('mp4') ? 'mp4' : 'webm';
         const fileInfo = createFileInfo(ext, 'video');
 
-        await uploadBlobToDrive(blob, fileInfo, currentMimeType);
+        await uploadBlobToFirebaseStorage(blob, fileInfo, currentMimeType);
       };
 
       mediaRecorder.start(1000);
 
       recordVideoBtn.disabled = true;
       stopRecordBtn.disabled = false;
-      cameraStatus.textContent = `録画中...`;
+      cameraStatus.textContent = '録画中...';
     }
 
     function stopRecord() {
