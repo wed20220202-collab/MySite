@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Festival Movie Color</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <h1>MOVIE COLOR</h1>
+      <p class="muted">動画から色を抽出して、カラーシーケンスとして保存します。</p>
+
+      <div class="grid">
+        <a class="btn" href="admin.html">管理画面</a>
+        <a class="btn" href="index.html">参加者画面</a>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>動画読み込み</h2>
+
+      <div class="row">
+        <input id="file" type="file" accept="video/mp4,video/quicktime,video/*" />
+      </div>
+
+      <div class="row">
+        <label>
+          保存名
+          <input id="name" type="text" value="festival-sequence" />
+        </label>
+
+        <label>
+          抽出間隔 秒
+          <input id="interval" type="number" value="0.5" min="0.1" step="0.1" />
+        </label>
+      </div>
+
+      <div class="row">
+        <button id="extract" class="primary">色を抽出</button>
+        <button id="save">保存</button>
+        <button id="clear" class="danger">全削除</button>
+      </div>
+
+      <p id="status" class="status">動画を選択してください</p>
+    </section>
+
+    <section class="card">
+      <h2>プレビュー</h2>
+      <video id="video" controls muted playsinline></video>
+      <canvas id="canvas" style="display:none;"></canvas>
+
+      <div id="colors" class="colors"></div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { saveSequence, clearSequences } from './realtime.js';
+
+    const fileInput = document.getElementById('file');
+    const nameInput = document.getElementById('name');
+    const intervalInput = document.getElementById('interval');
+    const extractBtn = document.getElementById('extract');
+    const saveBtn = document.getElementById('save');
+    const clearBtn = document.getElementById('clear');
+    const status = document.getElementById('status');
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const colors = document.getElementById('colors');
+
+    let frames = [];
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      video.src = URL.createObjectURL(file);
+      status.textContent = `読み込み完了：${file.name}`;
+      frames = [];
+      colors.innerHTML = '';
+    });
+
+    function waitVideoSeek() {
+      return new Promise(resolve => {
+        video.onseeked = () => resolve();
+      });
+    }
+
+    function getAverageColor() {
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+      const width = 80;
+      const height = 45;
+
+      canvas.width = width;
+      canvas.height = height;
+
+      ctx.drawImage(video, 0, 0, width, height);
+
+      const data = ctx.getImageData(0, 0, width, height).data;
+
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let count = 0;
+
+      for (let i = 0; i < data.length; i += 4) {
+        r += data[i];
+        g += data[i + 1];
+        b += data[i + 2];
+        count++;
+      }
+
+      r = Math.round(r / count);
+      g = Math.round(g / count);
+      b = Math.round(b / count);
+
+      return rgbToHex(r, g, b);
+    }
+
+    function rgbToHex(r, g, b) {
+      return '#' + [r, g, b]
+        .map(x => x.toString(16).padStart(2, '0'))
+        .join('');
+    }
+
+    function renderColors() {
+      colors.innerHTML = '';
+
+      frames.forEach((frame, i) => {
+        const div = document.createElement('div');
+        div.className = 'color-chip';
+        div.style.background = frame.color;
+        div.title = `${i + 1}: ${frame.color}`;
+        div.textContent = i + 1;
+        colors.appendChild(div);
+      });
+    }
+
+    extractBtn.addEventListener('click', async () => {
+      if (!video.src) {
+        alert('動画を選択してください');
+        return;
+      }
+
+      frames = [];
+      colors.innerHTML = '';
+
+      const interval = Number(intervalInput.value) || 0.5;
+
+      await new Promise(resolve => {
+        if (video.readyState >= 1) resolve();
+        else video.onloadedmetadata = resolve;
+      });
+
+      const duration = video.duration;
+
+      status.textContent = '抽出中...';
+
+      for (let t = 0; t < duration; t += interval) {
+        video.currentTime = t;
+        await waitVideoSeek();
+
+        const color = getAverageColor();
+
+        frames.push({
+          time: t,
+          color
+        });
+
+        status.textContent = `抽出中... ${frames.length} frames`;
+      }
+
+      renderColors();
+      status.textContent = `抽出完了：${frames.length} frames`;
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      if (!frames.length) {
+        alert('先に色を抽出してください');
+        return;
+      }
+
+      const sequence = {
+        name: nameInput.value || 'festival-sequence',
+        interval: Number(intervalInput.value) || 0.5,
+        duration: video.duration,
+        frames
+      };
+
+      await saveSequence(sequence);
+
+      status.textContent = `保存しました：${sequence.name}`;
+      alert('保存しました。admin.htmlで選択できます。');
+    });
+
+    clearBtn.addEventListener('click', async () => {
+      if (!confirm('保存済みシーケンスを全削除しますか？')) return;
+
+      await clearSequences();
+
+      frames = [];
+      colors.innerHTML = '';
+      status.textContent = '全削除しました';
+    });
+  </script>
+</body>
+
+</html>

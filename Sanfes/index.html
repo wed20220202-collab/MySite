@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Festival Color</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="colorStage"></div>
+
+  <script type="module">
+    import { watchActiveSession } from './realtime.js';
+
+    const stage = document.getElementById('colorStage');
+    const status = document.getElementById('status');
+    const colorText = document.getElementById('colorText');
+
+    function applyColor(session) {
+      if (!session || !session.color) return;
+
+      const color = session.color;
+
+      stage.style.background = color;
+      document.body.style.background = color;
+
+      colorText.textContent = color;
+      status.textContent = session.isPlaying
+        ? `受信中：${session.sequenceName || 'manual'}`
+        : '停止中';
+    }
+
+    watchActiveSession(applyColor);
+  </script>
+</body>
+</html>

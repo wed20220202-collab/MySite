@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ゼロカラ</title>
+    
+    <!-- Google Fonts の Epilogue を読み込む -->
+    <link href="https://fonts.googleapis.com/css2?family=Epilogue:wght@700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            text-align: center;
+            font-family: 'Epilogue', sans-serif;
+        }
+        .container {
+            position: relative;
+            display: inline-block;
+        }
+        .bg-image {
+            width: 100%; /* 画像Aのサイズに合わせる */
+        }
+        #realtime {
+            position: absolute;
+            top: 27%; /* 数字の表示位置を調整 */
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 12rem;
+            font-weight: bold;
+            font-variant-numeric: tabular-nums; /* 数字の幅を統一 */
+            color: white; /* 文字色を適宜変更 */
+            background: rgba(0, 0, 0, 0); /* 透明度を追加して視認性向上 */
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+    </style>
+
+    <script>
+        function showClock() {
+            let nowTime = new Date();
+            let nowHour = nowTime.getHours().toString().padStart(2, '0'); // 2桁表示
+            let nowMin  = nowTime.getMinutes().toString().padStart(2, '0');
+            let nowSec  = nowTime.getSeconds().toString().padStart(2, '0');
+            let nowMilli = Math.floor(nowTime.getMilliseconds() / 100); // 0〜9の値
+
+            let msg = nowHour + ":" + nowMin + ":" + nowSec + "." + nowMilli;
+            document.getElementById("realtime").innerHTML = msg;
+        }
+        setInterval(showClock, 100); // 100msごとに更新
+        window.onload = showClock;
+    </script>
+</head>
+<body>
+    <div class="container">
+        <img src="./IMG_2389.PNG" class="bg-image">
+        <p id="realtime">--:--:--.-</p>
+    </div>
+</body>
+</html>

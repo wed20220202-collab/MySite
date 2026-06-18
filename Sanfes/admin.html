@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Festival Admin</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <main class="wrap">
+        <section class="hero">
+            <h1>ADMIN CONTROL</h1>
+            <p class="muted">movie.htmlで作成したカラーシーケンスを選択して、index.htmlへ一斉配信します。</p>
+
+            <div class="grid">
+                <a class="btn" href="movie.html">カラー設定</a>
+                <a class="btn" href="index.html">参加者画面</a>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>保存済みシーケンス</h2>
+            <p id="mode" class="status">読み込み中</p>
+            <div id="list" class="list"></div>
+
+            <div class="row" style="margin-top:18px;">
+                <button id="reload">再読み込み</button>
+                <button id="start" class="primary">START</button>
+                <button id="stop" class="danger">STOP</button>
+            </div>
+
+            <p id="selected" class="status">未選択</p>
+        </section>
+
+        <section class="card">
+            <h2>手動カラー</h2>
+            <div class="row">
+                <input id="manualColor" type="color" value="#ff00ff" />
+                <button id="sendManual">この色を送信</button>
+                <button id="blackout" class="danger">暗転</button>
+            </div>
+        </section>
+    </main>
+
+    <script type="module">
+        import { getSequences, setActiveSession, modeLabel } from './realtime.js';
+
+        const list = document.getElementById('list');
+        const selectedText = document.getElementById('selected');
+        const mode = document.getElementById('mode');
+
+        let sequences = [];
+        let selected = null;
+        let timer = null;
+        let index = 0;
+
+        mode.textContent = await modeLabel();
+
+        async function load() {
+            sequences = await getSequences();
+
+            list.innerHTML = sequences.length
+                ? ''
+                : '<p class="muted">まだシーケンスがありません。movie.htmlで動画から色を抽出して保存してください。</p>';
+
+            sequences.forEach(seq => {
+                const div = document.createElement('div');
+                div.className = 'sequence-item';
+
+                div.innerHTML = `
+          <div>
+            <b>${seq.name}</b><br>
+            <span class="muted">${seq.frames?.length || 0} frames / interval ${seq.interval || '-'}s</span>
+          </div>
+          <button>選択</button>
+        `;
+
+                div.querySelector('button').addEventListener('click', () => {
+                    selected = seq;
+                    selectedText.textContent = `選択中：${seq.name}`;
+                });
+
+                list.appendChild(div);
+            });
+        }
+
+        async function stop() {
+            clearInterval(timer);
+            timer = null;
+
+            await setActiveSession({
+                isPlaying: false,
+                color: '#000000',
+                sequenceId: selected?.id || null,
+                sequenceName: selected?.name || 'stop'
+            });
+
+            selectedText.textContent = selected ? `停止中：${selected.name}` : '停止中';
+        }
+
+        document.getElementById('reload').addEventListener('click', load);
+
+        document.getElementById('start').addEventListener('click', async () => {
+            if (!selected || !selected.frames?.length) {
+                alert('シーケンスを選択してください');
+                return;
+            }
+
+            clearInterval(timer);
+            index = 0;
+
+            const startTime = performance.now();
+            const videoDuration = selected.duration || selected.frames.at(-1).time || 0;
+            const totalFrames = selected.frames.length;
+
+            const tick = async () => {
+                const elapsedSec = (performance.now() - startTime) / 1000;
+
+                if (elapsedSec >= videoDuration) {
+                    await stop();
+                    return;
+                }
+
+                let currentIndex = 0;
+
+                for (let i = 0; i < totalFrames; i++) {
+                    if (selected.frames[i].time <= elapsedSec) {
+                        currentIndex = i;
+                    } else {
+                        break;
+                    }
+                }
+
+                const frame = selected.frames[currentIndex];
+
+                await setActiveSession({
+                    isPlaying: true,
+                    color: frame.color,
+                    sequenceId: selected.id,
+                    sequenceName: selected.name,
+                    frameIndex: currentIndex,
+                    totalFrames,
+                    elapsedSec,
+                    duration: videoDuration
+                });
+
+                selectedText.textContent =
+                    `再生中：${selected.name} / ${elapsedSec.toFixed(1)}s / ${videoDuration.toFixed(1)}s / ${frame.color}`;
+            };
+
+            await tick();
+            timer = setInterval(tick, 50);
+        });
+
+        document.getElementById('stop').addEventListener('click', stop);
+
+        document.getElementById('sendManual').addEventListener('click', async () => {
+            clearInterval(timer);
+
+            const color = document.getElementById('manualColor').value;
+
+            await setActiveSession({
+                isPlaying: true,
+                color,
+                sequenceName: 'manual'
+            });
+
+            selectedText.textContent = `手動送信：${color}`;
+        });
+
+        document.getElementById('blackout').addEventListener('click', async () => {
+            clearInterval(timer);
+
+            await setActiveSession({
+                isPlaying: true,
+                color: '#000000',
+                sequenceName: 'blackout'
+            });
+
+            selectedText.textContent = '暗転送信：#000000';
+        });
+
+        load();
+    </script>
+</body>
+
+</html>
