@@ -22,8 +22,7 @@
   <div id="mainPanel" class="participant-ui hidden">
     <h1>FESTIVAL COLOR</h1>
     <p id="studentIdText">未ログイン</p>
-    <p id="status">受信待機中...</p>
-    <p id="colorText">#000000</p>
+
     <p id="uploadStatus">アップロード待機中</p>
     <button id="logoutBtn">ログアウト</button>
   </div>
@@ -34,10 +33,9 @@
     <video id="cameraPreview" autoplay playsinline muted></video>
 
     <div class="mini-controls">
-      <button id="takePhoto">📸</button>
-      <button id="recordVideo">●</button>
-      <button id="stopRecord" disabled>■</button>
-      <button id="closeCamera">×</button>
+      <button id="takePhoto" type="button" title="写真を撮影">&#128248;</button>
+      <button id="recordToggle" class="record-toggle" type="button" title="動画を撮影">&#9679;</button>
+      <button id="openGallery" type="button" title="ギャラリーを開く">&#128444;</button>
     </div>
 
     <p id="cameraStatus">カメラ待機中</p>
@@ -95,9 +93,8 @@
     const cameraPreview = document.getElementById('cameraPreview');
     const photoCanvas = document.getElementById('photoCanvas');
     const takePhotoBtn = document.getElementById('takePhoto');
-    const recordVideoBtn = document.getElementById('recordVideo');
-    const stopRecordBtn = document.getElementById('stopRecord');
-    const closeCameraBtn = document.getElementById('closeCamera');
+    const recordToggleBtn = document.getElementById('recordToggle');
+    const openGalleryBtn = document.getElementById('openGallery');
     const cameraStatus = document.getElementById('cameraStatus');
 
     let cameraStream = null;
@@ -421,6 +418,8 @@
 
         cameraPreview.srcObject = cameraStream;
         miniCamera.classList.remove('hidden');
+        openCameraBtn.classList.add('is-open');
+        openCameraBtn.setAttribute('aria-label', 'カメラを閉じる');
         cameraStatus.textContent = 'カメラ起動中';
       } catch (error) {
         console.error(error);
@@ -442,8 +441,12 @@
 
       cameraPreview.srcObject = null;
       miniCamera.classList.add('hidden');
-      recordVideoBtn.disabled = false;
-      stopRecordBtn.disabled = true;
+      openCameraBtn.classList.remove('is-open');
+      openCameraBtn.setAttribute('aria-label', 'カメラを開く');
+      recordToggleBtn.disabled = false;
+      recordToggleBtn.innerHTML = '&#9679;';
+      recordToggleBtn.classList.remove('is-recording');
+      recordToggleBtn.setAttribute('title', '動画を撮影');
       cameraStatus.textContent = 'カメラ停止';
     }
 
@@ -561,8 +564,10 @@
 
       mediaRecorder.start(1000);
 
-      recordVideoBtn.disabled = true;
-      stopRecordBtn.disabled = false;
+      recordToggleBtn.disabled = false;
+      recordToggleBtn.innerHTML = '&#9632;';
+      recordToggleBtn.classList.add('is-recording');
+      recordToggleBtn.setAttribute('title', '録画を停止');
       cameraStatus.textContent = `録画中...最大${MAX_VIDEO_SECONDS}秒`;
 
       recordTimerId = setTimeout(() => {
@@ -578,15 +583,36 @@
       }
 
       clearTimeout(recordTimerId);
-      recordVideoBtn.disabled = false;
-      stopRecordBtn.disabled = true;
+      recordToggleBtn.disabled = false;
+      recordToggleBtn.innerHTML = '&#9679;';
+      recordToggleBtn.classList.remove('is-recording');
+      recordToggleBtn.setAttribute('title', '動画を撮影');
     }
 
-    openCameraBtn.addEventListener('click', openCamera);
-    closeCameraBtn.addEventListener('click', closeCamera);
+    async function toggleCamera() {
+      if (cameraStream || !miniCamera.classList.contains('hidden')) {
+        closeCamera();
+        return;
+      }
+
+      await openCamera();
+    }
+
+    function toggleRecord() {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        stopRecord();
+        return;
+      }
+
+      startRecord();
+    }
+
+    openCameraBtn.addEventListener('click', toggleCamera);
     takePhotoBtn.addEventListener('click', takePhoto);
-    recordVideoBtn.addEventListener('click', startRecord);
-    stopRecordBtn.addEventListener('click', stopRecord);
+    recordToggleBtn.addEventListener('click', toggleRecord);
+    openGalleryBtn.addEventListener('click', () => {
+      window.location.href = 'gallery.html';
+    });
   </script>
 </body>
 </html>

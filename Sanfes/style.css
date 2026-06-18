@@ -247,6 +247,14 @@ video {
   padding: 0;
 }
 
+.camera-fab.is-open {
+  border-color: #ff00ff;
+  background: rgba(255, 0, 255, 0.24);
+  box-shadow:
+    0 0 16px rgba(255, 0, 255, 0.35),
+    0 0 24px rgba(0, 255, 255, 0.16);
+}
+
 .mini-camera {
   position: fixed;
   right: 12px;
@@ -274,7 +282,7 @@ video {
 
 .mini-controls {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 4px;
   padding: 6px;
 }
@@ -282,7 +290,31 @@ video {
 .mini-controls button {
   padding: 8px 0;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 16px;
+  min-width: 0;
+  height: 38px;
+  display: grid;
+  place-items: center;
+}
+
+.record-toggle {
+  border-color: #ff3b3b;
+  background: rgba(255, 59, 59, 0.24);
+  color: #fff;
+}
+
+.record-toggle.is-recording {
+  border-color: #ffffff;
+  background: #ff3030;
+  color: #ffffff;
+  box-shadow:
+    0 0 14px rgba(255, 48, 48, 0.65),
+    0 0 22px rgba(255, 255, 255, 0.16);
+}
+
+#openGallery {
+  border-color: #ff00ff;
+  background: rgba(255, 0, 255, 0.18);
 }
 
 #cameraStatus {
