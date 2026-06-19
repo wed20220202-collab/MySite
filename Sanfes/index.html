@@ -21,6 +21,7 @@
 
   <div id="mainPanel" class="participant-ui hidden">
     <h1>FESTIVAL COLOR</h1>
+    <p class="version-badge">v0.4.0-drive-school-log</p>
     <p id="studentIdText">未ログイン</p>
     <p id="status">受信待機中...</p>
     <p id="colorText">#000000</p>
@@ -263,9 +264,18 @@
         });
 
         tokenClient.requestAccessToken({
-          prompt: options.prompt || 'consent'
+          prompt: options.prompt ?? ''
         });
       });
+    }
+
+    async function getGoogleAccessTokenWithConsentFallback() {
+      try {
+        return await getGoogleAccessToken({ prompt: '' });
+      } catch (error) {
+        accessToken = '';
+        return getGoogleAccessToken({ prompt: 'consent' });
+      }
     }
 
     async function refreshGoogleAccessToken() {
@@ -544,7 +554,7 @@
     async function openCamera() {
       try {
         cameraStatus.textContent = 'Google Driveへ接続中...';
-        const token = await getGoogleAccessToken({ prompt: accessToken ? '' : 'consent' });
+        const token = await getGoogleAccessTokenWithConsentFallback();
         await ensureSchoolDriveFolder(token);
 
         cameraStream = await navigator.mediaDevices.getUserMedia({
