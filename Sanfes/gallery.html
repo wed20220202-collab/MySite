@@ -10,24 +10,42 @@
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
 <body>
-  <main class="wrap">
-    <section class="hero">
-      <h1>GALLERY</h1>
-      <p class="muted">Spreadsheet log viewer</p>
-
-      <div class="grid gallery-toolbar">
-        <a class="btn" href="index.html">Camera</a>
-        <button id="filterMine" class="primary" type="button">自分</button>
-        <button id="filterSchool" type="button">XX内</button>
-        <button id="filterCampus" type="button">vga全体</button>
-        <button id="reload" type="button">再読み込み</button>
-        <button id="downloadSelected" type="button">選択を一括DL</button>
+  <main class="wrap explorer-wrap">
+    <section class="explorer-header">
+      <div>
+        <h1>GALLERY</h1>
+        <p class="muted">Festival Drive Explorer</p>
       </div>
+      <a class="btn" href="index.html">Camera</a>
     </section>
 
-    <section class="card">
-      <p id="status" class="status">読み込み中...</p>
-      <div id="gallery" class="gallery-grid"></div>
+    <section class="explorer-shell">
+      <aside class="explorer-sidebar" aria-label="Gallery filters">
+        <p class="sidebar-label">Views</p>
+        <button id="filterMine" class="explorer-nav-item primary" type="button">
+          <span class="nav-icon">●</span>
+          <span>自分の写真</span>
+        </button>
+        <button id="filterSchool" class="explorer-nav-item" type="button">
+          <span class="nav-icon">◆</span>
+          <span>XX内</span>
+        </button>
+        <button id="filterCampus" class="explorer-nav-item" type="button">
+          <span class="nav-icon">■</span>
+          <span>vga全体</span>
+        </button>
+      </aside>
+
+      <section class="explorer-content">
+        <div class="explorer-commandbar">
+          <p id="status" class="status">読み込み中...</p>
+          <div class="explorer-actions">
+            <button id="reload" type="button">再読み込み</button>
+            <button id="downloadSelected" type="button">選択を一括DL</button>
+          </div>
+        </div>
+        <div id="gallery" class="gallery-grid explorer-file-grid"></div>
+      </section>
     </section>
   </main>
 
