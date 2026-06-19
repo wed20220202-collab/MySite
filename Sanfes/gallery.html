@@ -178,7 +178,7 @@
           <p class="muted">${escapeHtml(item.createdAt || "")}</p>
           <p class="muted">${escapeHtml(type)} / ${formatSize(item.size)}</p>
           <div class="gallery-actions compact-actions">
-            <button class="btn small heart-btn ${liked ? "liked" : ""}" type="button" data-action="like">💛 ${likes}</button>
+            <button class="btn small heart-btn ${liked ? "liked" : ""}" type="button" data-action="like" aria-pressed="${liked ? "true" : "false"}">💛 ${likes}</button>
             <a class="btn small" href="${escapeHtml(url)}" target="_blank" rel="noopener">開く</a>
             ${canDelete ? '<button class="btn small danger" type="button" data-action="delete">削除</button>' : ""}
           </div>
@@ -194,7 +194,7 @@
 
       card.addEventListener("click", event => {
         const action = event.target.dataset.action;
-        if (action === "like") toggleLike(item);
+        if (action === "like") toggleLike(item, event.target);
         if (action === "delete") deleteOwnItem(item);
       });
 
@@ -311,21 +311,64 @@
       images.forEach(img => observer.observe(img));
     }
 
-    async function toggleLike(item) {
+    function setLikedByMe(item, liked, studentId) {
+      const users = String(item.likedBy || "")
+        .split(",")
+        .map(v => v.trim())
+        .filter(Boolean);
+      const index = users.indexOf(studentId);
+
+      if (liked && index === -1) users.push(studentId);
+      if (!liked && index !== -1) users.splice(index, 1);
+
+      item.likedBy = users.join(",");
+      item.likes = users.length;
+    }
+
+    async function toggleLike(item, button) {
       const studentId = getCurrentStudentId();
       if (!studentId) {
         alert("先にindex.htmlでログインしてください");
         return;
       }
 
-      await postGas({
-        mode: "toggleLike",
-        driveFileId: item.driveFileId,
-        fileName: item.fileName,
-        studentId
-      });
+      const wasLiked = isLikedByMe(item);
+      const previousLikes = Number(item.likes || 0);
+      const nextLiked = !wasLiked;
+      const optimisticLikes = Math.max(0, previousLikes + (nextLiked ? 1 : -1));
 
-      await loadGallery();
+      button.disabled = true;
+      button.classList.toggle("liked", nextLiked);
+      button.setAttribute("aria-pressed", nextLiked ? "true" : "false");
+      button.textContent = `💛 ${optimisticLikes}`;
+      setLikedByMe(item, nextLiked, studentId);
+
+      try {
+        const result = await postGas({
+          mode: "toggleLike",
+          driveFileId: item.driveFileId,
+          fileName: item.fileName,
+          studentId
+        });
+
+        const confirmedLiked = Boolean(result.liked);
+        const confirmedLikes = Number(result.likes ?? item.likes ?? optimisticLikes);
+        setLikedByMe(item, confirmedLiked, studentId);
+        item.likes = confirmedLikes;
+        button.classList.toggle("liked", confirmedLiked);
+        button.setAttribute("aria-pressed", confirmedLiked ? "true" : "false");
+        button.textContent = `💛 ${confirmedLikes}`;
+      } catch (error) {
+        console.error(error);
+        setLikedByMe(item, wasLiked, studentId);
+        item.likes = previousLikes;
+        button.classList.toggle("liked", wasLiked);
+        button.setAttribute("aria-pressed", wasLiked ? "true" : "false");
+        button.textContent = `💛 ${previousLikes}`;
+        alert(`いいね更新失敗: ${error.message}`);
+      } finally {
+        button.disabled = false;
+      }
     }
 
     async function deleteOwnItem(item) {

@@ -1372,7 +1372,8 @@ button.danger,
   color: #8a5b00;
 }
 
-.heart-btn.liked {
+.heart-btn.liked,
+.heart-btn[aria-pressed="true"] {
   background: linear-gradient(180deg, #ffd95a, #ffc52f);
   color: #5f3b00;
 }
