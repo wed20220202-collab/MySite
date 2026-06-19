@@ -59,6 +59,31 @@
           <button id="clear" class="danger" type="button">Clear All</button>
         </div>
 
+        <div class="color-editor-panel">
+          <div class="panel-heading compact-heading">
+            <div>
+              <h2>Color Editor</h2>
+              <p class="muted">Add colors by fixed step without a movie.</p>
+            </div>
+          </div>
+
+          <div class="editor-grid">
+            <label>
+              <span>Color</span>
+              <input id="editorColor" type="color" value="#00aaff" />
+            </label>
+            <label>
+              <span>Step seconds</span>
+              <input id="editorStep" type="number" value="0.2" min="0.1" step="0.1" />
+            </label>
+          </div>
+
+          <div class="studio-actions compact">
+            <button id="addEditorColor" class="primary" type="button">Add Color</button>
+            <button id="clearEditor" type="button">Clear Editor</button>
+          </div>
+        </div>
+
         <p id="status" class="status">動画を選択してください</p>
       </article>
 
@@ -86,6 +111,10 @@
     const extractBtn = document.getElementById('extract');
     const saveBtn = document.getElementById('save');
     const clearBtn = document.getElementById('clear');
+    const editorColorInput = document.getElementById('editorColor');
+    const editorStepInput = document.getElementById('editorStep');
+    const addEditorColorBtn = document.getElementById('addEditorColor');
+    const clearEditorBtn = document.getElementById('clearEditor');
     const status = document.getElementById('status');
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
@@ -207,7 +236,9 @@
       const sequence = {
         name: nameInput.value || 'festival-sequence',
         interval: Number(intervalInput.value) || 0.5,
-        duration: video.duration,
+        duration: Number.isFinite(video.duration)
+          ? video.duration
+          : ((frames.at(-1)?.time || 0) + (Number(intervalInput.value) || 0.5)),
         frames
       };
 
@@ -225,6 +256,31 @@
       frames = [];
       colors.innerHTML = '';
       status.textContent = '全削除しました';
+    });
+
+    addEditorColorBtn.addEventListener('click', () => {
+      const interval = Number(editorStepInput.value) || 0.2;
+      const color = editorColorInput.value;
+      const time = frames.length * interval;
+
+      frames.push({
+        time,
+        color
+      });
+
+      intervalInput.value = String(interval);
+      if (nameInput.value === 'festival-sequence') {
+        nameInput.value = 'color-editor-sequence';
+      }
+
+      renderColors();
+      status.textContent = `Color Editor: ${frames.length} frames / ${interval.toFixed(1)}s step`;
+    });
+
+    clearEditorBtn.addEventListener('click', () => {
+      frames = [];
+      colors.innerHTML = '';
+      status.textContent = 'Color Editorをクリアしました';
     });
   </script>
 </body>

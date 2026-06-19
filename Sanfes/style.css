@@ -1022,6 +1022,41 @@ button.danger,
   border-radius: 10px;
 }
 
+.color-editor-panel {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--stroke);
+}
+
+.compact-heading {
+  margin-bottom: 12px;
+}
+
+.editor-grid {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 12px;
+  align-items: end;
+}
+
+.editor-grid label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.editor-grid input[type="color"] {
+  width: 92px;
+  height: 48px;
+  border-radius: 14px;
+}
+
+.studio-actions.compact {
+  margin-top: 12px;
+}
+
 @media (max-width: 860px) {
   .app-topbar {
     flex-direction: column;
