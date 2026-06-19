@@ -14,6 +14,7 @@
       <div>
         <p class="page-kicker">LIVE CONTROL</p>
         <h1>ADMIN</h1>
+        <p class="version-badge page-version">v0.7.5-admin-monitor</p>
         <p class="muted">Saved color sequences and live color override.</p>
       </div>
       <nav class="app-nav">
@@ -35,6 +36,10 @@
       <div>
         <span class="metric-label">Output</span>
         <strong id="liveState">Idle</strong>
+      </div>
+      <div>
+        <span class="metric-label">Users</span>
+        <strong id="loginSummary">0 login</strong>
       </div>
     </section>
 
@@ -68,15 +73,62 @@
         </div>
       </aside>
     </section>
+
+    <section class="admin-activity-grid">
+      <article class="panel activity-panel">
+        <div class="panel-heading">
+          <div>
+            <h2>Page Entry</h2>
+            <p class="muted">admin.html / movie.html / gallery.html の入退室</p>
+          </div>
+        </div>
+        <div class="presence-columns">
+          <div>
+            <h3>Admin</h3>
+            <div id="adminPresence" class="activity-list"></div>
+          </div>
+          <div>
+            <h3>Movie</h3>
+            <div id="moviePresence" class="activity-list"></div>
+          </div>
+          <div>
+            <h3>Gallery</h3>
+            <div id="galleryPresence" class="activity-list"></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel activity-panel">
+        <div class="panel-heading">
+          <div>
+            <h2>Login State</h2>
+            <p class="muted">利用者のログイン中 / ログアウト中</p>
+          </div>
+        </div>
+        <div id="loginStates" class="activity-list tall"></div>
+      </article>
+    </section>
   </main>
 
   <script type="module">
-    import { getSequences, setActiveSession, modeLabel } from './realtime.js';
+    import {
+      getSequences,
+      setActiveSession,
+      modeLabel,
+      setPagePresence,
+      watchPagePresence,
+      watchLoginStates
+    } from './realtime.js';
 
     const list = document.getElementById('list');
     const selectedText = document.getElementById('selected');
     const mode = document.getElementById('mode');
     const liveState = document.getElementById('liveState');
+    const loginSummary = document.getElementById('loginSummary');
+    const adminPresence = document.getElementById('adminPresence');
+    const moviePresence = document.getElementById('moviePresence');
+    const galleryPresence = document.getElementById('galleryPresence');
+    const loginStates = document.getElementById('loginStates');
 
     let sequences = [];
     let selected = null;
@@ -84,6 +136,67 @@
     let index = 0;
 
     mode.textContent = await modeLabel();
+    setPagePresence('admin', localStorage.getItem('festival_student_id') || 'admin');
+
+    function formatClock(value) {
+      if (!value) return '-';
+      const date = new Date(Number(value));
+      if (Number.isNaN(date.getTime())) return '-';
+      return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    function escapeHtml(text) {
+      return String(text ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function renderActivityList(target, items, emptyText) {
+      target.innerHTML = '';
+
+      if (!items.length) {
+        target.innerHTML = `<p class="muted empty-state">${emptyText}</p>`;
+        return;
+      }
+
+      items.forEach(item => {
+        const row = document.createElement('div');
+        row.className = `activity-row ${item.status === 'in' || item.isLoggedIn ? 'is-online' : 'is-offline'}`;
+        row.innerHTML = `
+          <div>
+            <b>${escapeHtml(item.studentId || 'guest')}</b>
+            <span>${escapeHtml(item.pageName || item.status || '')}</span>
+          </div>
+          <strong>${item.status === 'in' || item.isLoggedIn ? 'IN' : 'OUT'}</strong>
+          <time>${formatClock(item.updatedAt || item.enteredAt)}</time>
+        `;
+        target.appendChild(row);
+      });
+    }
+
+    function flattenPresence(data, pageName) {
+      return Object.values(data?.[pageName] || {})
+        .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0))
+        .slice(0, 12);
+    }
+
+    watchPagePresence(data => {
+      renderActivityList(adminPresence, flattenPresence(data, 'admin'), 'admin.html の入退室はまだありません');
+      renderActivityList(moviePresence, flattenPresence(data, 'movie'), 'movie.html の入退室はまだありません');
+      renderActivityList(galleryPresence, flattenPresence(data, 'gallery'), 'Gallery の入退室はまだありません');
+    });
+
+    watchLoginStates(data => {
+      const users = Object.values(data || {})
+        .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
+      const onlineCount = users.filter(user => user.isLoggedIn).length;
+
+      loginSummary.textContent = `${onlineCount} login / ${users.length} users`;
+      renderActivityList(loginStates, users, 'ログイン記録はまだありません');
+    });
 
     async function load() {
       sequences = await getSequences();

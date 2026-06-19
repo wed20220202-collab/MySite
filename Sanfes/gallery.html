@@ -14,8 +14,9 @@
     <section class="explorer-header">
       <div>
         <h1>GALLERY</h1>
-        <p class="version-badge page-version">v0.7.4-privacy-gallery</p>
+        <p class="version-badge page-version">v0.7.5-admin-monitor</p>
         <p class="muted">Festival Drive Explorer</p>
+        <p id="galleryStudentId" class="gallery-id-pill">ID: guest</p>
       </div>
       <a class="btn" href="index.html">Camera</a>
     </section>
@@ -477,6 +478,18 @@
     downloadSelectedBtn.addEventListener("click", downloadSelected);
 
     loadGallery();
+  </script>
+  <script type="module">
+    import { setPagePresence } from './realtime.js';
+
+    const studentId = localStorage.getItem("festival_student_id") || "guest";
+    const idLabel = document.getElementById("galleryStudentId");
+
+    if (idLabel) {
+      idLabel.textContent = `ID: ${studentId}`;
+    }
+
+    setPagePresence("gallery", studentId);
   </script>
 </body>
 </html>
