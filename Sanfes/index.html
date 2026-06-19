@@ -279,8 +279,8 @@
 
     function getSchoolFolderName() {
       const studentId = getStudentId();
-      const match = studentId.match(/^[a-zA-Z]+/);
-      return match ? match[0].toUpperCase() : 'UNKNOWN';
+      const match = studentId.match(/^[^-]+-([a-zA-Z]+)/);
+      return match ? match[1].toUpperCase() : 'UNKNOWN';
     }
 
     async function ensureSchoolDriveFolder(token) {
