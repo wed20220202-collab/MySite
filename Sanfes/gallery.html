@@ -14,7 +14,7 @@
     <section class="explorer-header">
       <div>
         <h1>GALLERY</h1>
-        <p class="version-badge page-version">v0.7.0-polished-ui</p>
+        <p class="version-badge page-version">v0.7.4-privacy-gallery</p>
         <p class="muted">Festival Drive Explorer</p>
       </div>
       <a class="btn" href="index.html">Camera</a>
@@ -114,6 +114,27 @@
       return likedBy.split(",").map(v => v.trim()).includes(me);
     }
 
+    function shouldHideIdentity(item) {
+      if (activeFilter === "mine") return false;
+
+      const fileName = String(item.fileName || "").toLowerCase();
+      const mimeType = String(item.mimeType || "").toLowerCase();
+      const type = String(item.type || "").toLowerCase();
+
+      return type === "photo"
+        || mimeType.startsWith("image/")
+        || fileName.endsWith(".jpg")
+        || fileName.endsWith(".jpeg");
+    }
+
+    function getDisplayName(item) {
+      if (!shouldHideIdentity(item)) {
+        return item.fileName || "no-name";
+      }
+
+      return activeFilter === "school" ? "学校内の写真" : "学園内の写真";
+    }
+
     function filterUploads() {
       const me = getCurrentStudentId();
       const mySchool = getSchoolCode(me);
@@ -150,6 +171,8 @@
       const canDelete = String(item.studentId || "") === getCurrentStudentId();
       const likes = Number(item.likes || 0);
       const liked = isLikedByMe(item);
+      const hideIdentity = shouldHideIdentity(item);
+      const displayName = getDisplayName(item);
 
       const card = document.createElement("article");
       card.className = "gallery-card";
@@ -157,9 +180,9 @@
 
       let preview = "";
       if (isPhoto && item.driveFileId) {
-        preview = `<img class="gallery-preview drive-private-image" data-drive-file-id="${escapeHtml(item.driveFileId)}" alt="${escapeHtml(item.fileName || "photo")}" loading="lazy">`;
+        preview = `<img class="gallery-preview drive-private-image" data-drive-file-id="${escapeHtml(item.driveFileId)}" alt="${escapeHtml(displayName)}" loading="lazy">`;
       } else if (isPhoto && previewUrl) {
-        preview = `<img class="gallery-preview" src="${escapeHtml(previewUrl)}" alt="${escapeHtml(item.fileName || "photo")}" loading="lazy">`;
+        preview = `<img class="gallery-preview" src="${escapeHtml(previewUrl)}" alt="${escapeHtml(displayName)}" loading="lazy">`;
       } else if (isVideo) {
         preview = `<div class="gallery-video-placeholder">VIDEO</div>`;
       } else {
@@ -172,9 +195,9 @@
         </label>
         ${preview}
         <div class="gallery-info">
-          <b>${escapeHtml(item.fileName || "no-name")}</b>
+          <b>${escapeHtml(displayName)}</b>
           <p class="muted">School: ${escapeHtml(item.schoolCode || getSchoolCode(item.studentId))}</p>
-          <p class="muted">ID: ${escapeHtml(item.studentId || "")}</p>
+          ${hideIdentity ? '<p class="muted">ID: 非表示</p>' : `<p class="muted">ID: ${escapeHtml(item.studentId || "")}</p>`}
           <p class="muted">${escapeHtml(item.createdAt || "")}</p>
           <p class="muted">${escapeHtml(type)} / ${formatSize(item.size)}</p>
           <div class="gallery-actions compact-actions">
