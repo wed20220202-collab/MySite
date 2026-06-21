@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MP4 Beat Color Generator</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:," />
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <h1>BEAT COLOR</h1>
+      <p class="muted">MP4の音声を0.2秒単位で解析し、ビートに合わせた単色カラーシーケンスを生成します。</p>
+
+      <div class="grid">
+        <a class="btn" href="admin.html">管理画面</a>
+        <a class="btn" href="index.html">参加者画面</a>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>MP4読み込み</h2>
+
+      <div class="row">
+        <input id="file" type="file" accept="video/mp4,video/*" />
+      </div>
+
+      <div class="row">
+        <label>
+          保存名
+          <input id="name" type="text" value="beat-color-sequence" />
+        </label>
+
+        <label>
+          解析間隔 秒
+          <input id="interval" type="number" value="0.2" min="0.1" step="0.1" />
+        </label>
+
+        <label>
+          感度
+          <input id="sensitivity" type="number" value="0.85" min="0.35" max="2.5" step="0.05" />
+        </label>
+      </div>
+
+      <div class="row">
+        <label>
+          テーマ
+          <select id="theme">
+            <option value="festival">フェス</option>
+            <option value="rainbow">虹</option>
+            <option value="red">赤系</option>
+            <option value="blue">青系</option>
+            <option value="school">学校カラー</option>
+            <option value="whiteFlash">白フラッシュ</option>
+          </select>
+        </label>
+
+        <button id="analyze" class="primary">解析して生成</button>
+        <button id="save">保存</button>
+        <button id="previewBtn">プレビュー</button>
+      </div>
+
+      <p id="status" class="status">MP4を選択してください</p>
+    </section>
+
+    <section class="card">
+      <h2>動画確認</h2>
+      <video id="video" controls playsinline muted></video>
+      <canvas id="canvas" style="display:none;"></canvas>
+    </section>
+
+    <section class="card">
+      <h2>プレビュー</h2>
+      <div id="previewStage" class="beat-preview-stage"></div>
+      <p id="previewText" class="status">未生成</p>
+    </section>
+
+    <section class="card">
+      <h2>生成結果</h2>
+      <p id="count" class="status">0 frames</p>
+      <div id="colors" class="colors"></div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { saveSequence } from './realtime.js';
+
+    const fileInput = document.getElementById('file');
+    const nameInput = document.getElementById('name');
+    const intervalInput = document.getElementById('interval');
+    const sensitivityInput = document.getElementById('sensitivity');
+    const themeInput = document.getElementById('theme');
+    const analyzeBtn = document.getElementById('analyze');
+    const saveBtn = document.getElementById('save');
+    const previewBtn = document.getElementById('previewBtn');
+    const status = document.getElementById('status');
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const colors = document.getElementById('colors');
+    const count = document.getElementById('count');
+    const previewStage = document.getElementById('previewStage');
+    const previewText = document.getElementById('previewText');
+
+    let frames = [];
+    let duration = 0;
+    let previewTimer = null;
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      video.src = URL.createObjectURL(file);
+      status.textContent = `読み込み完了：${file.name}`;
+
+      frames = [];
+      colors.innerHTML = '';
+      count.textContent = '0 frames';
+      previewText.textContent = '未生成';
+    });
+
+    function waitLoadedMetadata(target) {
+      return new Promise(resolve => {
+        if (target.readyState >= 1) resolve();
+        else target.onloadedmetadata = resolve;
+      });
+    }
+
+    function getThemeColors(theme) {
+      if (theme === 'rainbow') {
+        return {
+          base: ['#160022', '#001122', '#001010'],
+          beat: ['#ff0000', '#ffff00', '#00ff00', '#00ffff', '#0000ff', '#ff00ff', '#ffffff']
+        };
+      }
+
+      if (theme === 'red') {
+        return {
+          base: ['#080000', '#120000', '#1a0000'],
+          beat: ['#ff0000', '#ff3333', '#ff8800', '#ffffff']
+        };
+      }
+
+      if (theme === 'blue') {
+        return {
+          base: ['#000610', '#001122', '#000b1a'],
+          beat: ['#0044ff', '#00aaff', '#66ffff', '#ffffff']
+        };
+      }
+
+      if (theme === 'school') {
+        return {
+          base: ['#020014', '#001018', '#100016'],
+          beat: ['#00ffff', '#ff00ff', '#ffffff', '#0000ff']
+        };
+      }
+
+      if (theme === 'whiteFlash') {
+        return {
+          base: ['#000000', '#050505'],
+          beat: ['#ffffff', '#eeeeee', '#00ffff']
+        };
+      }
+
+      return {
+        base: ['#05000c', '#001014', '#000000'],
+        beat: ['#ff00ff', '#00ffff', '#ffffff', '#ff0066', '#ffff00']
+      };
+    }
+
+    function pickColor(list, index) {
+      return list[index % list.length];
+    }
+
+    async function decodeAudioFromVideoFile(file) {
+      const audioContext = new AudioContext();
+      const arrayBuffer = await file.arrayBuffer();
+
+      status.textContent = '音声デコード中...';
+
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      await audioContext.close();
+
+      return audioBuffer;
+    }
+
+    function calcRms(channelData, startSample, endSample) {
+      let sum = 0;
+      let count = 0;
+
+      for (let i = startSample; i < endSample; i++) {
+        const v = channelData[i] || 0;
+        sum += v * v;
+        count++;
+      }
+
+      if (!count) return 0;
+
+      return Math.sqrt(sum / count);
+    }
+
+    function movingAverage(values, center, radius) {
+      let sum = 0;
+      let count = 0;
+
+      const start = Math.max(0, center - radius);
+      const end = Math.min(values.length - 1, center + radius);
+
+      for (let i = start; i <= end; i++) {
+        sum += values[i];
+        count++;
+      }
+
+      return count ? sum / count : 0;
+    }
+
+    function generateBeatSequence(audioBuffer, interval, sensitivity, theme) {
+      const channelData = audioBuffer.getChannelData(0);
+      const sampleRate = audioBuffer.sampleRate;
+      const totalDuration = audioBuffer.duration;
+
+      const steps = Math.ceil(totalDuration / interval);
+      const volumes = [];
+
+      for (let i = 0; i < steps; i++) {
+        const startTime = i * interval;
+        const endTime = Math.min(totalDuration, startTime + interval);
+
+        const startSample = Math.floor(startTime * sampleRate);
+        const endSample = Math.floor(endTime * sampleRate);
+
+        const rms = calcRms(channelData, startSample, endSample);
+        volumes.push(rms);
+      }
+
+      const palette = getThemeColors(theme);
+      const result = [];
+
+      let beatIndex = 0;
+      let baseIndex = 0;
+      let lastBeat = -999;
+
+      for (let i = 0; i < volumes.length; i++) {
+        const t = i * interval;
+        const volume = volumes[i];
+        const avg = movingAverage(volumes, i, 3);
+
+        const prev = volumes[i - 1] || 0;
+        const next = volumes[i + 1] || 0;
+        const threshold = Math.max(0.35, Number(sensitivity) || 0.85);
+        const attack = volume - prev;
+        const lift = avg > 0 ? (volume - avg) / avg : 0;
+
+        const isPeak = volume >= prev * 1.03 && volume >= next * 0.98;
+        const isStrong = avg > 0 && volume > avg * threshold;
+        const isTransient = avg > 0 && attack > avg * 0.18 * threshold;
+        const isLifted = lift > 0.1 * threshold;
+        const cooldownOk = i - lastBeat >= 1;
+
+        let isBeat = cooldownOk && ((isPeak && isStrong) || (isTransient && isLifted));
+
+        let color;
+
+        if (isBeat) {
+          color = pickColor(palette.beat, beatIndex);
+          beatIndex++;
+          lastBeat = i;
+        } else {
+          color = pickColor(palette.base, baseIndex);
+          baseIndex++;
+        }
+
+        result.push({
+          time: Number(t.toFixed(3)),
+          color,
+          volume: Number(volume.toFixed(6)),
+          lift: Number(lift.toFixed(6)),
+          beat: isBeat
+        });
+      }
+
+      return {
+        frames: result,
+        duration: totalDuration
+      };
+    }
+
+    function renderColors() {
+      colors.innerHTML = '';
+
+      frames.forEach((frame, i) => {
+        const div = document.createElement('div');
+        div.className = 'color-chip';
+        div.style.background = frame.color;
+        div.title = `${i + 1}: ${frame.time}s ${frame.color} ${frame.beat ? 'BEAT' : ''}`;
+        div.textContent = frame.beat ? '●' : '';
+        colors.appendChild(div);
+      });
+
+      const beatCount = frames.filter(f => f.beat).length;
+      count.textContent = `${frames.length} frames / ${beatCount} beats`;
+    }
+
+    analyzeBtn.addEventListener('click', async () => {
+      const file = fileInput.files[0];
+
+      if (!file) {
+        alert('MP4を選択してください');
+        return;
+      }
+
+      try {
+        analyzeBtn.disabled = true;
+
+        await waitLoadedMetadata(video);
+
+        const interval = Number(intervalInput.value) || 0.2;
+        const sensitivity = Number(sensitivityInput.value) || 0.85;
+        const theme = themeInput.value;
+
+        status.textContent = '解析開始...';
+
+        const audioBuffer = await decodeAudioFromVideoFile(file);
+
+        const generated = generateBeatSequence(audioBuffer, interval, sensitivity, theme);
+
+        frames = generated.frames;
+        duration = generated.duration;
+
+        renderColors();
+
+        status.textContent = `生成完了：${frames.length} frames / ${duration.toFixed(1)}秒`;
+
+      } catch (error) {
+        console.error(error);
+        alert(`解析失敗：${error.message}`);
+        status.textContent = `解析失敗：${error.message}`;
+      } finally {
+        analyzeBtn.disabled = false;
+      }
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      if (!frames.length) {
+        alert('先に解析してください');
+        return;
+      }
+
+      const interval = Number(intervalInput.value) || 0.2;
+
+      const sequence = {
+        name: nameInput.value || 'beat-color-sequence',
+        interval,
+        duration,
+        frames
+      };
+
+      await saveSequence(sequence);
+
+      status.textContent = `保存しました：${sequence.name}`;
+      alert('保存しました。admin.htmlで選択できます。');
+    });
+
+    previewBtn.addEventListener('click', () => {
+      if (!frames.length) {
+        alert('先に解析してください');
+        return;
+      }
+
+      clearInterval(previewTimer);
+
+      let i = 0;
+      const interval = Number(intervalInput.value) || 0.2;
+
+      previewTimer = setInterval(() => {
+        const frame = frames[i];
+
+        previewStage.style.background = frame.color;
+        previewText.textContent =
+          `${i + 1}/${frames.length} ${frame.time}s ${frame.color} ${frame.beat ? 'BEAT' : ''}`;
+
+        i++;
+
+        if (i >= frames.length) {
+          i = 0;
+        }
+      }, interval * 1000);
+    });
+  </script>
+</body>
+</html>
