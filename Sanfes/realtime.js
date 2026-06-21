@@ -69,12 +69,18 @@ export async function saveSequence(sequence) {
   const newSequence = {
     ...sequence,
     id,
-    createdAt: Date.now()
+    createdAt: sequence.createdAt || Date.now(),
+    updatedAt: Date.now()
   };
 
   await set(ref(db, `${SEQUENCES_PATH}/${id}`), newSequence);
 
   return newSequence;
+}
+
+export async function deleteSequence(id) {
+  if (!id) return;
+  await remove(ref(db, `${SEQUENCES_PATH}/${id}`));
 }
 
 export async function clearSequences() {
