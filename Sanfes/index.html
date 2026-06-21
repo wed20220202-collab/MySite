@@ -21,7 +21,7 @@
 
   <div id="mainPanel" class="participant-ui hidden">
     <h1>FESTIVAL COLOR</h1>
-    <p class="version-badge">v0.7.7-login-split</p>
+    <p class="version-badge">v0.7.8-sheet-login-status</p>
     <p id="studentIdText">未ログイン</p>
     <p>～この画面で待機してください～</p>
     <p id="uploadStatus">アップロード待機中</p>
@@ -73,6 +73,7 @@
     const REALTIME_LOGIN_EMAILS = [
       "vga29-pc250029@sankogakuen.jp"
     ];
+    const LOGIN_HEARTBEAT_MS = 60000;
 
     const firebaseConfig = {
       apiKey: "AIzaSyC7oudfhfJC7zssUb0KR98tFy_lxvVT0bI",
@@ -123,6 +124,8 @@
     let accessToken = '';
     let schoolFolderId = '';
     let currentFacingMode = 'environment';
+    let loginHeartbeatTimer = null;
+    let currentLoginUser = null;
 
     loginBtn.addEventListener('click', async () => {
       loginMessage.textContent = 'ログイン中...';
@@ -148,13 +151,31 @@
       await setUserLoginState(studentId, isLoggedIn, { pageName: 'index', email });
     }
 
-    async function recordFirstLoginToSpreadsheet(user) {
+    function createLoginPayload(user, statusValue) {
+      const email = user?.email || '';
+      const studentId = email.split('@')[0];
+
+      return {
+        mode: 'recordLoginStatus',
+        studentId,
+        email,
+        schoolCode: getSchoolFolderName(),
+        status: statusValue,
+        createdAt: new Date().toISOString()
+      };
+    }
+
+    async function recordLoginStatusToSpreadsheet(user, statusValue, options = {}) {
       const email = user?.email || '';
       if (!email) return;
 
-      const studentId = email.split('@')[0];
-      const key = `festival_login_recorded_${studentId}`;
-      if (localStorage.getItem(key) === 'true') return;
+      const payload = createLoginPayload(user, statusValue);
+
+      if (options.keepalive && navigator.sendBeacon) {
+        const blob = new Blob([JSON.stringify(payload)], { type: 'text/plain;charset=utf-8' });
+        navigator.sendBeacon(GAS_URL, blob);
+        return;
+      }
 
       try {
         const res = await fetch(GAS_URL, {
@@ -162,26 +183,41 @@
           headers: {
             'Content-Type': 'text/plain;charset=utf-8'
           },
-          body: JSON.stringify({
-            mode: 'recordLogin',
-            studentId,
-            email,
-            schoolCode: getSchoolFolderName(),
-            createdAt: new Date().toISOString()
-          })
+          body: JSON.stringify(payload),
+          keepalive: options.keepalive === true
         });
         const result = await res.json();
-        if (result.success) {
-          localStorage.setItem(key, 'true');
-        }
+        if (!result.success) throw new Error(result.message || 'login status update failed');
       } catch (error) {
-        console.warn('login sheet record failed', error);
+        console.warn('login status update failed', error);
       }
+    }
+
+    function startLoginHeartbeat(user) {
+      currentLoginUser = user;
+      clearInterval(loginHeartbeatTimer);
+      recordLoginStatusToSpreadsheet(user, 'login');
+
+      loginHeartbeatTimer = setInterval(() => {
+        recordLoginStatusToSpreadsheet(user, 'login');
+      }, LOGIN_HEARTBEAT_MS);
+    }
+
+    async function stopLoginHeartbeat(statusValue = 'logout', options = {}) {
+      clearInterval(loginHeartbeatTimer);
+      loginHeartbeatTimer = null;
+
+      if (currentLoginUser) {
+        await recordLoginStatusToSpreadsheet(currentLoginUser, statusValue, options);
+      }
+
+      currentLoginUser = null;
     }
 
     logoutBtn.addEventListener('click', async () => {
       accessToken = '';
       await setMonitoredLoginState(auth.currentUser, false);
+      await stopLoginHeartbeat('logout');
       await signOut(auth);
     });
 
@@ -206,13 +242,19 @@
       const studentId = email.split('@')[0];
       localStorage.setItem('festival_student_id', studentId);
       await setMonitoredLoginState(user, true);
-      await recordFirstLoginToSpreadsheet(user);
+      startLoginHeartbeat(user);
 
       studentIdText.textContent = `ID: ${studentId}`;
       loginPanel.classList.add('hidden');
       mainPanel.classList.remove('hidden');
       openCameraBtn.classList.remove('hidden');
       loginMessage.textContent = '';
+    });
+
+    window.addEventListener('pagehide', () => {
+      if (currentLoginUser) {
+        recordLoginStatusToSpreadsheet(currentLoginUser, 'logout', { keepalive: true });
+      }
     });
 
     function applyColor(session) {
