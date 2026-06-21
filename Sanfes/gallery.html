@@ -14,7 +14,7 @@
     <section class="explorer-header">
       <div>
         <h1>GALLERY</h1>
-        <p class="version-badge page-version">v0.7.5-admin-monitor</p>
+        <p class="version-badge page-version">v0.7.6-storage-fallback</p>
         <p class="muted">Festival Drive Explorer</p>
         <p id="galleryStudentId" class="gallery-id-pill">ID: guest</p>
       </div>
@@ -168,6 +168,7 @@
       const isPhoto = type === "photo" || String(item.mimeType || "").startsWith("image/");
       const isVideo = type === "video" || String(item.mimeType || "").startsWith("video/");
       const url = item.driveUrl || item.downloadURL || "";
+      const storageVideoUrl = isVideo && item.storagePath && item.downloadURL ? item.downloadURL : "";
       const previewUrl = item.thumbnailLink || item.thumbnailUrl || url;
       const canDelete = String(item.studentId || "") === getCurrentStudentId();
       const likes = Number(item.likes || 0);
@@ -184,6 +185,8 @@
         preview = `<img class="gallery-preview drive-private-image" data-drive-file-id="${escapeHtml(item.driveFileId)}" alt="${escapeHtml(displayName)}" loading="lazy">`;
       } else if (isPhoto && previewUrl) {
         preview = `<img class="gallery-preview" src="${escapeHtml(previewUrl)}" alt="${escapeHtml(displayName)}" loading="lazy">`;
+      } else if (storageVideoUrl) {
+        preview = `<video class="gallery-preview gallery-video-preview" src="${escapeHtml(storageVideoUrl)}" controls preload="metadata" playsinline></video>`;
       } else if (isVideo) {
         preview = `<div class="gallery-video-placeholder">VIDEO</div>`;
       } else {
@@ -424,18 +427,27 @@
       const items = filterUploads().filter(item => selectedIds.has(getItemId(item)));
       if (!items.length) return;
 
-      const token = await getDriveAccessToken();
       const zip = new JSZip();
       status.textContent = `一括ダウンロード準備中... 0/${items.length}`;
+      let token = "";
 
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
-        if (!item.driveFileId) continue;
+        const directUrl = item.downloadURL || "";
+        let res = null;
 
         status.textContent = `一括ダウンロード準備中... ${i + 1}/${items.length}`;
-        const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(item.driveFileId)}?alt=media&supportsAllDrives=true`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+
+        if (item.driveFileId) {
+          token ||= await getDriveAccessToken();
+          res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(item.driveFileId)}?alt=media&supportsAllDrives=true`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        } else if (directUrl) {
+          res = await fetch(directUrl);
+        } else {
+          continue;
+        }
 
         if (!res.ok) {
           console.warn("download failed", item.fileName, await res.text());

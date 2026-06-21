@@ -438,6 +438,11 @@ video {
   background: #000;
 }
 
+.gallery-video-preview {
+  object-fit: contain;
+  background: #0f172a;
+}
+
 .gallery-video-placeholder {
   height: 180px;
   display: grid;
