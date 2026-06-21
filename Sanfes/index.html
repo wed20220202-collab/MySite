@@ -48,7 +48,7 @@
   </div>
 
   <script type="module">
-    import { watchActiveSession, setUserLoginState } from './realtime.js';
+    import { watchActiveSession, setUserLoginState, setPagePresence } from './realtime.js';
 
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
     import {
@@ -242,6 +242,7 @@
 
       const studentId = email.split('@')[0];
       localStorage.setItem('festival_student_id', studentId);
+      setPagePresence('index', studentId);
       await setMonitoredLoginState(user, true);
       startLoginHeartbeat(user);
 

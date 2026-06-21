@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Festival Movie Color v0.7.5</title>
+  <title>Festival Movie Color</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 
@@ -12,14 +12,13 @@
   <main class="wrap movie-studio">
     <header class="app-topbar">
       <div>
-        <p class="page-kicker">カラースタジオ</p>
+        <p class="page-kicker">カラー制御スタジオ</p>
         <h1>MOVIE COLOR</h1>
-        <p class="version-badge page-version">v0.8.0-sequence-admin</p>
-        <p class="muted">動画から平均的な色を抽出し、シーケンスとして保存します。</p>
+        <p class="version-badge page-version">v0.8.1-movie-merge</p>
+        <p class="muted">動画からの色抽出、手動カラー作成、保存済みシーケンスの編集を1画面で管理します。</p>
       </div>
       <nav class="app-nav">
-        <a class="btn" href="movieadmin.html">シーケンス管理</a>
-        <a class="btn" href="admin.html">管理者画面</a>
+        <a class="btn" href="admin.html">管理画面</a>
         <a class="btn" href="gallery.html">ギャラリー</a>
         <a class="btn" href="index.html">参加者画面</a>
       </nav>
@@ -29,8 +28,8 @@
       <article class="panel setup-panel">
         <div class="panel-heading">
           <div>
-            <h2>動画の色を抽出</h2>
-            <p class="muted">動画ファイルを読み込み、間隔を選択し、色を抽出します。</p>
+            <h2>作成</h2>
+            <p class="muted">動画から色を抽出、またはColor Editorで手動作成します。</p>
           </div>
         </div>
 
@@ -38,7 +37,7 @@
           <span class="drop-icon">+</span>
           <span>
             <strong>動画を選択</strong>
-            <small>mp4, mov, またはブラウザでサポートされている動画形式</small>
+            <small>mp4, mov, またはブラウザ対応の動画形式</small>
           </span>
           <input id="file" type="file" accept="video/mp4,video/quicktime,video/*" />
         </label>
@@ -50,50 +49,50 @@
           </label>
 
           <label>
-            <span>間隔 (秒)</span>
+            <span>間隔 秒</span>
             <input id="interval" type="number" value="0.5" min="0.1" step="0.1" />
           </label>
         </div>
 
         <div class="studio-actions">
-          <button id="extract" class="primary" type="button">Extract</button>
-          <button id="save" type="button">Save</button>
-          <button id="clear" class="danger" type="button">Clear All</button>
+          <button id="extract" class="primary" type="button">抽出</button>
+          <button id="save" type="button">保存</button>
+          <button id="clear" class="danger" type="button">全削除</button>
         </div>
 
         <div class="color-editor-panel">
           <div class="panel-heading compact-heading">
             <div>
               <h2>Color Editor</h2>
-              <p class="muted">Add colors by fixed step without a movie.</p>
+              <p class="muted">動画なしで、指定秒数ごとの色を追加します。</p>
             </div>
           </div>
 
           <div class="editor-grid">
             <label>
-              <span>Color</span>
+              <span>色</span>
               <input id="editorColor" type="color" value="#00aaff" />
             </label>
             <label>
-              <span>Step seconds</span>
+              <span>ステップ 秒</span>
               <input id="editorStep" type="number" value="0.2" min="0.1" step="0.1" />
             </label>
           </div>
 
           <div class="studio-actions compact">
-            <button id="addEditorColor" class="primary" type="button">Add Color</button>
-            <button id="clearEditor" type="button">Clear Editor</button>
+            <button id="addEditorColor" class="primary" type="button">色を追加</button>
+            <button id="clearEditor" type="button">作成中をクリア</button>
           </div>
         </div>
 
-        <p id="status" class="status">動画を選択してください</p>
+        <p id="status" class="status">動画を選択、またはColor Editorで色を追加してください。</p>
       </article>
 
       <article class="panel preview-panel">
         <div class="panel-heading">
           <div>
             <h2>プレビュー</h2>
-            <p class="muted">生成されたスウォッチは動画の下に表示されます。</p>
+            <p class="muted">作成中のカラータイムラインを確認します。</p>
           </div>
         </div>
 
@@ -102,10 +101,79 @@
         <div id="colors" class="colors color-timeline"></div>
       </article>
     </section>
+
+    <section id="sequence-admin" class="sequence-admin-grid merged-sequence-admin">
+      <article class="panel sequence-admin-list-panel">
+        <div class="panel-heading">
+          <div>
+            <h2>保存済みシーケンス</h2>
+            <p class="muted">編集、複製、削除するシーケンスを選択します。</p>
+          </div>
+          <button id="reloadSequences" type="button">再読み込み</button>
+        </div>
+        <div id="sequenceList" class="sequence-admin-list"></div>
+      </article>
+
+      <article class="panel sequence-admin-editor-panel">
+        <div class="panel-heading">
+          <div>
+            <h2>シーケンス編集</h2>
+            <p id="editorStatus" class="muted">シーケンスを選択してください。</p>
+          </div>
+        </div>
+
+        <div id="emptyEditor" class="empty-editor">
+          <p class="muted">左の一覧から編集するシーケンスを選択します。</p>
+        </div>
+
+        <form id="editorForm" class="sequence-editor hidden">
+          <div class="field-grid two-col">
+            <label>
+              <span>名前</span>
+              <input id="sequenceName" type="text" />
+            </label>
+            <label>
+              <span>間隔 秒</span>
+              <input id="sequenceInterval" type="number" min="0.1" step="0.1" />
+            </label>
+            <label>
+              <span>再生時間 秒</span>
+              <input id="sequenceDuration" type="number" min="0" step="0.1" />
+            </label>
+            <label>
+              <span>フレーム数</span>
+              <input id="frameCount" type="text" disabled />
+            </label>
+          </div>
+
+          <div class="studio-actions">
+            <button class="primary" type="submit">変更を保存</button>
+            <button id="duplicateSequence" type="button">複製</button>
+            <button id="addFrame" type="button">フレーム追加</button>
+            <button id="deleteSequence" class="danger" type="button">削除</button>
+          </div>
+
+          <div class="frame-editor">
+            <div class="frame-editor-head">
+              <span>時間</span>
+              <span>色</span>
+              <span>操作</span>
+            </div>
+            <div id="frameRows" class="frame-rows"></div>
+          </div>
+        </form>
+      </article>
+    </section>
   </main>
 
   <script type="module">
-    import { saveSequence, clearSequences, setPagePresence } from './realtime.js';
+    import {
+      getSequences,
+      saveSequence,
+      clearSequences,
+      deleteSequence,
+      setPagePresence
+    } from './realtime.js';
 
     const fileInput = document.getElementById('file');
     const nameInput = document.getElementById('name');
@@ -122,9 +190,34 @@
     const canvas = document.getElementById('canvas');
     const colors = document.getElementById('colors');
 
+    const sequenceList = document.getElementById('sequenceList');
+    const reloadSequencesBtn = document.getElementById('reloadSequences');
+    const editorStatus = document.getElementById('editorStatus');
+    const emptyEditor = document.getElementById('emptyEditor');
+    const editorForm = document.getElementById('editorForm');
+    const sequenceName = document.getElementById('sequenceName');
+    const sequenceInterval = document.getElementById('sequenceInterval');
+    const sequenceDuration = document.getElementById('sequenceDuration');
+    const frameCount = document.getElementById('frameCount');
+    const frameRows = document.getElementById('frameRows');
+    const duplicateBtn = document.getElementById('duplicateSequence');
+    const addFrameBtn = document.getElementById('addFrame');
+    const deleteBtn = document.getElementById('deleteSequence');
+
     let frames = [];
+    let sequences = [];
+    let selected = null;
 
     setPagePresence('movie', localStorage.getItem('festival_student_id') || 'guest');
+
+    function escapeHtml(text) {
+      return String(text ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
 
     fileInput.addEventListener('change', () => {
       const file = fileInput.files[0];
@@ -144,17 +237,14 @@
 
     function getAverageColor() {
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
       const width = 80;
       const height = 45;
 
       canvas.width = width;
       canvas.height = height;
-
       ctx.drawImage(video, 0, 0, width, height);
 
       const data = ctx.getImageData(0, 0, width, height).data;
-
       let r = 0;
       let g = 0;
       let b = 0;
@@ -167,11 +257,11 @@
         count++;
       }
 
-      r = Math.round(r / count);
-      g = Math.round(g / count);
-      b = Math.round(b / count);
-
-      return rgbToHex(r, g, b);
+      return rgbToHex(
+        Math.round(r / count),
+        Math.round(g / count),
+        Math.round(b / count)
+      );
     }
 
     function rgbToHex(r, g, b) {
@@ -187,7 +277,7 @@
         const div = document.createElement('div');
         div.className = 'color-chip timeline-chip';
         div.style.background = frame.color;
-        div.title = `${i + 1}: ${frame.color}`;
+        div.title = `${frame.time.toFixed(1)}s: ${frame.color}`;
         div.textContent = i + 1;
         colors.appendChild(div);
       });
@@ -201,7 +291,6 @@
 
       frames = [];
       colors.innerHTML = '';
-
       const interval = Number(intervalInput.value) || 0.5;
 
       await new Promise(resolve => {
@@ -210,30 +299,22 @@
       });
 
       const duration = video.duration;
-
       status.textContent = '抽出中...';
 
       for (let t = 0; t < duration; t += interval) {
         video.currentTime = t;
         await waitVideoSeek();
-
-        const color = getAverageColor();
-
-        frames.push({
-          time: t,
-          color
-        });
-
-        status.textContent = `抽出中... ${frames.length} frames`;
+        frames.push({ time: t, color: getAverageColor() });
+        status.textContent = `抽出中... ${frames.length}フレーム`;
       }
 
       renderColors();
-      status.textContent = `抽出完了: ${frames.length} frames`;
+      status.textContent = `抽出完了: ${frames.length}フレーム`;
     });
 
     saveBtn.addEventListener('click', async () => {
       if (!frames.length) {
-        alert('先に色を抽出してください');
+        alert('先に色を作成してください');
         return;
       }
 
@@ -247,19 +328,19 @@
       };
 
       await saveSequence(sequence);
-
       status.textContent = `保存しました: ${sequence.name}`;
-      alert('保存しました。Adminで選択できます。');
+      await loadSequences();
     });
 
     clearBtn.addEventListener('click', async () => {
-      if (!confirm('保存済みシーケンスを全削除しますか？')) return;
+      if (!confirm('保存済みシーケンスをすべて削除しますか？')) return;
 
       await clearSequences();
-
       frames = [];
       colors.innerHTML = '';
-      status.textContent = '全削除しました';
+      selected = null;
+      status.textContent = 'すべて削除しました';
+      await loadSequences();
     });
 
     addEditorColorBtn.addEventListener('click', () => {
@@ -267,25 +348,181 @@
       const color = editorColorInput.value;
       const time = frames.length * interval;
 
-      frames.push({
-        time,
-        color
-      });
-
+      frames.push({ time, color });
       intervalInput.value = String(interval);
+
       if (nameInput.value === 'festival-sequence') {
         nameInput.value = 'color-editor-sequence';
       }
 
       renderColors();
-      status.textContent = `Color Editor: ${frames.length} frames / ${interval.toFixed(1)}s step`;
+      status.textContent = `Color Editor: ${frames.length}フレーム / ${interval.toFixed(1)}秒ステップ`;
     });
 
     clearEditorBtn.addEventListener('click', () => {
       frames = [];
       colors.innerHTML = '';
-      status.textContent = 'Color Editorをクリアしました';
+      status.textContent = '作成中の色をクリアしました';
     });
+
+    function normalizeFrame(frame, index) {
+      return {
+        time: Number(frame?.time ?? index * Number(sequenceInterval.value || 0.2)),
+        color: frame?.color || '#000000'
+      };
+    }
+
+    function getFormSequence() {
+      const editedFrames = Array.from(frameRows.querySelectorAll('.frame-row'))
+        .map(row => ({
+          time: Number(row.querySelector('[data-field="time"]').value || 0),
+          color: row.querySelector('[data-field="color"]').value || '#000000'
+        }))
+        .sort((a, b) => a.time - b.time);
+
+      return {
+        ...selected,
+        name: sequenceName.value.trim() || 'untitled-sequence',
+        interval: Number(sequenceInterval.value || 0.2),
+        duration: Number(sequenceDuration.value || (editedFrames.at(-1)?.time || 0)),
+        frames: editedFrames
+      };
+    }
+
+    function renderList() {
+      sequenceList.innerHTML = '';
+
+      if (!sequences.length) {
+        sequenceList.innerHTML = '<p class="muted empty-state">保存済みシーケンスはありません。</p>';
+        return;
+      }
+
+      sequences.forEach(seq => {
+        const row = document.createElement('div');
+        row.className = `sequence-row sequence-admin-item ${selected?.id === seq.id ? 'is-selected' : ''}`;
+        row.innerHTML = `
+          <div class="sequence-meta">
+            <b>${escapeHtml(seq.name || 'untitled-sequence')}</b>
+            <span>${seq.frames?.length || 0}フレーム / ${Number(seq.duration || 0).toFixed(1)}秒</span>
+          </div>
+          <button type="button">編集</button>
+        `;
+
+        row.querySelector('button').addEventListener('click', () => selectSequence(seq.id));
+        sequenceList.appendChild(row);
+      });
+    }
+
+    function renderFrames(sourceFrames) {
+      frameRows.innerHTML = '';
+
+      sourceFrames.map(normalizeFrame).forEach(frame => {
+        const row = document.createElement('div');
+        row.className = 'frame-row';
+        row.innerHTML = `
+          <input data-field="time" type="number" min="0" step="0.1" value="${Number(frame.time).toFixed(1)}">
+          <input data-field="color" type="color" value="${escapeHtml(frame.color)}">
+          <button class="danger" type="button" data-action="remove">削除</button>
+        `;
+
+        row.querySelector('[data-action="remove"]').addEventListener('click', () => {
+          row.remove();
+          updateFrameCount();
+        });
+
+        frameRows.appendChild(row);
+      });
+
+      updateFrameCount();
+    }
+
+    function updateFrameCount() {
+      frameCount.value = `${frameRows.querySelectorAll('.frame-row').length}フレーム`;
+    }
+
+    function selectSequence(id) {
+      selected = sequences.find(seq => seq.id === id) || null;
+      if (!selected) return;
+
+      emptyEditor.classList.add('hidden');
+      editorForm.classList.remove('hidden');
+      editorStatus.textContent = `編集中: ${selected.name || selected.id}`;
+      sequenceName.value = selected.name || '';
+      sequenceInterval.value = selected.interval || 0.2;
+      sequenceDuration.value = selected.duration || selected.frames?.at(-1)?.time || 0;
+      renderFrames(selected.frames || []);
+      renderList();
+    }
+
+    async function loadSequences() {
+      editorStatus.textContent = '読み込み中...';
+      sequences = await getSequences();
+      sequences.sort((a, b) => Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0));
+      renderList();
+
+      if (selected && sequences.some(seq => seq.id === selected.id)) {
+        selectSequence(selected.id);
+      } else {
+        selected = null;
+        editorStatus.textContent = 'シーケンスを選択してください。';
+        emptyEditor.classList.remove('hidden');
+        editorForm.classList.add('hidden');
+      }
+    }
+
+    editorForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!selected) return;
+
+      const saved = await saveSequence(getFormSequence());
+      selected = saved;
+      editorStatus.textContent = `保存しました: ${saved.name}`;
+      await loadSequences();
+    });
+
+    duplicateBtn.addEventListener('click', async () => {
+      if (!selected) return;
+
+      const source = getFormSequence();
+      const saved = await saveSequence({
+        ...source,
+        id: undefined,
+        name: `${source.name} copy`,
+        createdAt: undefined,
+        updatedAt: undefined,
+        frames: source.frames.map(frame => ({ ...frame }))
+      });
+
+      selected = saved;
+      editorStatus.textContent = `複製しました: ${saved.name}`;
+      await loadSequences();
+      selectSequence(saved.id);
+    });
+
+    addFrameBtn.addEventListener('click', () => {
+      const interval = Number(sequenceInterval.value || 0.2);
+      const lastTime = Array.from(frameRows.querySelectorAll('[data-field="time"]'))
+        .map(input => Number(input.value || 0))
+        .sort((a, b) => a - b)
+        .at(-1) || 0;
+
+      renderFrames([
+        ...getFormSequence().frames,
+        { time: lastTime + interval, color: '#ffffff' }
+      ]);
+    });
+
+    deleteBtn.addEventListener('click', async () => {
+      if (!selected) return;
+      if (!confirm(`${selected.name || selected.id} を削除しますか？`)) return;
+
+      await deleteSequence(selected.id);
+      selected = null;
+      await loadSequences();
+    });
+
+    reloadSequencesBtn.addEventListener('click', loadSequences);
+    loadSequences();
   </script>
 </body>
 
