@@ -21,7 +21,7 @@
 
   <div id="mainPanel" class="participant-ui hidden">
     <h1>FESTIVAL COLOR</h1>
-    <p class="version-badge">v0.7.5-admin-monitor</p>
+    <p class="version-badge">v0.7.6-storage-fallback</p>
     <p id="studentIdText">未ログイン</p>
     <p>～この画面で待機してください～</p>
     <p id="uploadStatus">アップロード待機中</p>
@@ -58,6 +58,12 @@
       onAuthStateChanged,
       signOut
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+    import {
+      getStorage,
+      ref as storageRef,
+      uploadBytesResumable,
+      getDownloadURL
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
     const GOOGLE_CLIENT_ID = "819550776861-btle4ghnr6lb560p3oua2akksiuvbm3o.apps.googleusercontent.com";
     const GOOGLE_DRIVE_FOLDER_ID = "1r7rKCri1my5jNO2OMV_4G3B9gos8kSAG";
@@ -78,6 +84,7 @@
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
+    const storage = getStorage(app);
 
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ hd: "sankogakuen.jp" });
@@ -582,6 +589,88 @@
       throw new Error('アップロード完了レスポンスを取得できませんでした');
     }
 
+    function uploadBlobToFirebaseStorage(blob, fileInfo, mimeType, reason) {
+      return new Promise((resolve, reject) => {
+        const schoolCode = getSchoolFolderName();
+        const storagePath = `fallback/${schoolCode}/${fileInfo.studentId}/${fileInfo.fileName}`;
+        const ref = storageRef(storage, storagePath);
+
+        uploadStatus.textContent = `Drive失敗のためStorageへ保存中: ${fileInfo.fileName}`;
+        cameraStatus.textContent = 'Storageへ保存中...';
+        setUploadProgress(0, `Storageへ保存中: ${fileInfo.fileName}`);
+
+        const task = uploadBytesResumable(ref, blob, {
+          contentType: mimeType,
+          customMetadata: {
+            studentId: fileInfo.studentId,
+            fileNo: fileInfo.fileNo,
+            type: fileInfo.type,
+            schoolCode,
+            fallbackReason: String(reason?.message || reason || 'Drive upload failed')
+          }
+        });
+
+        task.on(
+          'state_changed',
+          snapshot => {
+            const percent = snapshot.totalBytes
+              ? Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100)
+              : 0;
+            setUploadProgress(percent, `Storageへ保存中: ${fileInfo.fileName}`);
+          },
+          reject,
+          async () => {
+            try {
+              const downloadURL = await getDownloadURL(task.snapshot.ref);
+
+              try {
+                await saveUploadLogToSpreadsheet({
+                  studentId: fileInfo.studentId,
+                  schoolCode,
+                  fileNo: fileInfo.fileNo,
+                  type: fileInfo.type,
+                  fileName: fileInfo.fileName,
+                  storagePath,
+                  driveFileId: '',
+                  driveFolderId: '',
+                  rootFolderId: '',
+                  driveUrl: '',
+                  downloadURL,
+                  thumbnailLink: '',
+                  mimeType,
+                  size: blob.size,
+                  createdAt: new Date().toISOString(),
+                  approved: true,
+                  fallback: true,
+                  fallbackReason: String(reason?.message || reason || 'Drive upload failed')
+                });
+              } catch (logError) {
+                console.error(logError);
+                uploadStatus.textContent = `Storage保存完了 / ログ保存失敗: ${logError.message}`;
+              }
+
+              setUploadProgress(100, `Storage保存完了: ${fileInfo.fileName}`);
+              uploadStatus.innerHTML =
+                `Storage保存完了 <a href="${downloadURL}" target="_blank" rel="noopener">${fileInfo.fileName}</a>`;
+              cameraStatus.textContent = `Storage保存完了: ${fileInfo.fileName}`;
+              resolve({ storagePath, downloadURL });
+            } catch (error) {
+              reject(error);
+            }
+          }
+        );
+      });
+    }
+
+    async function uploadVideoWithFallback(blob, fileInfo, mimeType) {
+      try {
+        return await uploadBlobToGoogleDrive(blob, fileInfo, mimeType);
+      } catch (driveError) {
+        console.warn('Drive upload failed. Falling back to Firebase Storage.', driveError);
+        return uploadBlobToFirebaseStorage(blob, fileInfo, mimeType, driveError);
+      }
+    }
+
     function sleep(ms) {
       return new Promise(resolve => setTimeout(resolve, ms));
     }
@@ -735,7 +824,7 @@
         const fileInfo = createFileInfo(ext, 'video');
 
         try {
-          await uploadBlobToGoogleDrive(blob, fileInfo, currentMimeType);
+          await uploadVideoWithFallback(blob, fileInfo, currentMimeType);
         } catch (error) {
           console.error(error);
           uploadStatus.textContent = `アップロード失敗: ${error.message}`;
