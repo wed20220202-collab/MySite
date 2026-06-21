@@ -874,7 +874,7 @@ button.danger,
 
 .admin-activity-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(300px, 0.8fr);
+  grid-template-columns: 1fr;
   gap: 18px;
   margin-top: 18px;
 }
@@ -885,7 +885,7 @@ button.danger,
 
 .presence-columns {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 

@@ -14,7 +14,7 @@
       <div>
         <p class="page-kicker">運営コントロール</p>
         <h1>管理画面</h1>
-        <p class="version-badge page-version">v0.7.8-sheet-login-status</p>
+        <p class="version-badge page-version">v0.7.9-admin-presence-merge</p>
         <p class="muted">カラー演出の再生、手動カラー送信、各ページの入退室とログイン状態を確認できます。</p>
       </div>
       <nav class="app-nav">
@@ -95,17 +95,11 @@
             <h3>Gallery画面</h3>
             <div id="galleryPresence" class="activity-list"></div>
           </div>
-        </div>
-      </article>
-
-      <article class="panel activity-panel">
-        <div class="panel-heading">
           <div>
-            <h2>監視対象ログイン</h2>
-            <p class="muted">指定メールアドレスのユーザーだけをRealtime Databaseで確認します。全ユーザーの初回ログインはSpreadsheetに記録します。</p>
+            <h3>監視対象</h3>
+            <div id="loginStates" class="activity-list"></div>
           </div>
         </div>
-        <div id="loginStates" class="activity-list tall"></div>
       </article>
     </section>
   </main>
@@ -130,7 +124,8 @@
     const galleryPresence = document.getElementById('galleryPresence');
     const loginStates = document.getElementById('loginStates');
     const MONITORED_LOGIN_STUDENT_IDS = [
-      'vga29-pc250029'
+      'vga29-pc250029',
+      'vga29-pc250006'
     ];
 
     let sequences = [];
