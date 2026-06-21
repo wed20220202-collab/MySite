@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Festival Admin</title>
+  <title>学園祭 管理画面</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 
@@ -12,34 +12,34 @@
   <main class="wrap app-console">
     <header class="app-topbar">
       <div>
-        <p class="page-kicker">LIVE CONTROL</p>
-        <h1>⚙️管理者⚙️</h1>
-        <p class="version-badge page-version">v0.7.5-admin-monitor</p>
-        <p class="muted">保存されているカラーインスタンスを呼び出す or 手動でカラーを設定</p>
+        <p class="page-kicker">運営コントロール</p>
+        <h1>管理画面</h1>
+        <p class="version-badge page-version">v0.7.6-storage-fallback</p>
+        <p class="muted">カラー演出の再生、手動カラー送信、各ページの入退室とログイン状態を確認できます。</p>
       </div>
       <nav class="app-nav">
-        <a class="btn" href="movie.html">Movie Studio</a>
-        <a class="btn" href="gallery.html">Gallery</a>
-        <a class="btn" href="index.html">Participant</a>
+        <a class="btn" href="movie.html">カラー編集</a>
+        <a class="btn" href="gallery.html">ギャラリー</a>
+        <a class="btn" href="index.html">参加者画面</a>
       </nav>
     </header>
 
     <section class="admin-status-strip">
       <div>
-        <span class="metric-label">Mode</span>
-        <strong id="mode">Loading...</strong>
+        <span class="metric-label">接続方式</span>
+        <strong id="mode">読み込み中...</strong>
       </div>
       <div>
-        <span class="metric-label">Selected</span>
-        <strong id="selected">None</strong>
+        <span class="metric-label">選択中</span>
+        <strong id="selected">未選択</strong>
       </div>
       <div>
-        <span class="metric-label">Output</span>
-        <strong id="liveState">Idle</strong>
+        <span class="metric-label">出力状態</span>
+        <strong id="liveState">待機中</strong>
       </div>
       <div>
-        <span class="metric-label">Users</span>
-        <strong id="loginSummary">0 login</strong>
+        <span class="metric-label">利用者</span>
+        <strong id="loginSummary">ログイン 0人</strong>
       </div>
     </section>
 
@@ -47,29 +47,29 @@
       <article class="panel sequence-panel">
         <div class="panel-heading">
           <div>
-            <h2>Sequences</h2>
-            <p class="muted">Choose a saved movie color sequence.</p>
+            <h2>シーケンス</h2>
+            <p class="muted">Movie画面で保存したカラーシーケンスを選択します。</p>
           </div>
-          <button id="reload" type="button">Reload</button>
+          <button id="reload" type="button">再読み込み</button>
         </div>
 
         <div id="list" class="list sequence-list-modern"></div>
       </article>
 
       <aside class="panel control-panel">
-        <h2>Playback</h2>
+        <h2>再生操作</h2>
         <div class="control-stack">
-          <button id="start" class="primary control-button" type="button">START</button>
-          <button id="stop" class="danger control-button" type="button">STOP</button>
+          <button id="start" class="primary control-button" type="button">開始</button>
+          <button id="stop" class="danger control-button" type="button">停止</button>
         </div>
 
         <div class="manual-card">
-          <h2>Manual Color</h2>
+          <h2>手動カラー</h2>
           <div class="manual-color-row">
             <input id="manualColor" type="color" value="#ff00ff" />
-            <button id="sendManual" type="button">Send</button>
+            <button id="sendManual" type="button">送信</button>
           </div>
-          <button id="blackout" class="danger full-width" type="button">Blackout</button>
+          <button id="blackout" class="danger full-width" type="button">暗転</button>
         </div>
       </aside>
     </section>
@@ -78,21 +78,21 @@
       <article class="panel activity-panel">
         <div class="panel-heading">
           <div>
-            <h2>Page Entry</h2>
-            <p class="muted">admin.html / movie.html / gallery.html の入退室</p>
+            <h2>入退室状況</h2>
+            <p class="muted">管理画面 / Movie画面 / Gallery画面の接続状況を確認します。</p>
           </div>
         </div>
         <div class="presence-columns">
           <div>
-            <h3>Admin</h3>
+            <h3>管理画面</h3>
             <div id="adminPresence" class="activity-list"></div>
           </div>
           <div>
-            <h3>Movie</h3>
+            <h3>Movie画面</h3>
             <div id="moviePresence" class="activity-list"></div>
           </div>
           <div>
-            <h3>Gallery</h3>
+            <h3>Gallery画面</h3>
             <div id="galleryPresence" class="activity-list"></div>
           </div>
         </div>
@@ -101,8 +101,8 @@
       <article class="panel activity-panel">
         <div class="panel-heading">
           <div>
-            <h2>Login State</h2>
-            <p class="muted">利用者のログイン中 / ログアウト中</p>
+            <h2>ログイン状態</h2>
+            <p class="muted">参加者のログイン中 / ログアウト中を確認します。</p>
           </div>
         </div>
         <div id="loginStates" class="activity-list tall"></div>
@@ -133,7 +133,6 @@
     let sequences = [];
     let selected = null;
     let timer = null;
-    let index = 0;
 
     mode.textContent = await modeLabel();
     setPagePresence('admin', localStorage.getItem('festival_student_id') || 'admin');
@@ -163,14 +162,15 @@
       }
 
       items.forEach(item => {
+        const isOnline = item.status === 'in' || item.isLoggedIn;
         const row = document.createElement('div');
-        row.className = `activity-row ${item.status === 'in' || item.isLoggedIn ? 'is-online' : 'is-offline'}`;
+        row.className = `activity-row ${isOnline ? 'is-online' : 'is-offline'}`;
         row.innerHTML = `
           <div>
             <b>${escapeHtml(item.studentId || 'guest')}</b>
             <span>${escapeHtml(item.pageName || item.status || '')}</span>
           </div>
-          <strong>${item.status === 'in' || item.isLoggedIn ? 'IN' : 'OUT'}</strong>
+          <strong>${isOnline ? '入室中' : '退出'}</strong>
           <time>${formatClock(item.updatedAt || item.enteredAt)}</time>
         `;
         target.appendChild(row);
@@ -184,9 +184,9 @@
     }
 
     watchPagePresence(data => {
-      renderActivityList(adminPresence, flattenPresence(data, 'admin'), 'admin.html の入退室はまだありません');
-      renderActivityList(moviePresence, flattenPresence(data, 'movie'), 'movie.html の入退室はまだありません');
-      renderActivityList(galleryPresence, flattenPresence(data, 'gallery'), 'Gallery の入退室はまだありません');
+      renderActivityList(adminPresence, flattenPresence(data, 'admin'), '管理画面の入退室はまだありません');
+      renderActivityList(moviePresence, flattenPresence(data, 'movie'), 'Movie画面の入退室はまだありません');
+      renderActivityList(galleryPresence, flattenPresence(data, 'gallery'), 'Gallery画面の入退室はまだありません');
     });
 
     watchLoginStates(data => {
@@ -194,7 +194,7 @@
         .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
       const onlineCount = users.filter(user => user.isLoggedIn).length;
 
-      loginSummary.textContent = `${onlineCount} login / ${users.length} users`;
+      loginSummary.textContent = `ログイン ${onlineCount}人 / 全${users.length}人`;
       renderActivityList(loginStates, users, 'ログイン記録はまだありません');
     });
 
@@ -203,7 +203,7 @@
 
       list.innerHTML = sequences.length
         ? ''
-        : '<p class="muted empty-state">No sequences yet. Create one in Movie Studio.</p>';
+        : '<p class="muted empty-state">保存済みシーケンスはまだありません。Movie画面で作成してください。</p>';
 
       sequences.forEach(seq => {
         const div = document.createElement('div');
@@ -211,16 +211,16 @@
 
         div.innerHTML = `
           <div class="sequence-meta">
-            <b>${seq.name}</b>
-            <span>${seq.frames?.length || 0} frames / interval ${seq.interval || '-'}s</span>
+            <b>${escapeHtml(seq.name)}</b>
+            <span>${seq.frames?.length || 0}フレーム / 間隔 ${seq.interval || '-'}秒</span>
           </div>
-          <button type="button">Select</button>
+          <button type="button">選択</button>
         `;
 
         div.querySelector('button').addEventListener('click', () => {
           selected = seq;
           selectedText.textContent = seq.name;
-          liveState.textContent = 'Ready';
+          liveState.textContent = '再生準備完了';
           document.querySelectorAll('.sequence-row').forEach(row => row.classList.remove('is-selected'));
           div.classList.add('is-selected');
         });
@@ -240,20 +240,19 @@
         sequenceName: selected?.name || 'stop'
       });
 
-      liveState.textContent = 'Stopped';
-      selectedText.textContent = selected ? selected.name : 'None';
+      liveState.textContent = '停止中';
+      selectedText.textContent = selected ? selected.name : '未選択';
     }
 
     document.getElementById('reload').addEventListener('click', load);
 
     document.getElementById('start').addEventListener('click', async () => {
       if (!selected || !selected.frames?.length) {
-        alert('シーケンスを選択してください');
+        alert('先にシーケンスを選択してください');
         return;
       }
 
       clearInterval(timer);
-      index = 0;
 
       const startTime = performance.now();
       const videoDuration = selected.duration || selected.frames.at(-1).time || 0;
@@ -290,7 +289,7 @@
           duration: videoDuration
         });
 
-        liveState.textContent = `${elapsedSec.toFixed(1)}s / ${videoDuration.toFixed(1)}s / ${frame.color}`;
+        liveState.textContent = `再生中 ${elapsedSec.toFixed(1)}秒 / ${videoDuration.toFixed(1)}秒 / ${frame.color}`;
       };
 
       await tick();
@@ -310,7 +309,7 @@
         sequenceName: 'manual'
       });
 
-      liveState.textContent = `Manual ${color}`;
+      liveState.textContent = `手動送信 ${color}`;
     });
 
     document.getElementById('blackout').addEventListener('click', async () => {
@@ -322,7 +321,7 @@
         sequenceName: 'blackout'
       });
 
-      liveState.textContent = 'Blackout #000000';
+      liveState.textContent = '暗転 #000000';
     });
 
     load();
