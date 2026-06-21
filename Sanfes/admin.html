@@ -14,7 +14,7 @@
       <div>
         <p class="page-kicker">運営コントロール</p>
         <h1>管理画面</h1>
-        <p class="version-badge page-version">v0.7.6-storage-fallback</p>
+        <p class="version-badge page-version">v0.7.7-login-split</p>
         <p class="muted">カラー演出の再生、手動カラー送信、各ページの入退室とログイン状態を確認できます。</p>
       </div>
       <nav class="app-nav">
@@ -38,7 +38,7 @@
         <strong id="liveState">待機中</strong>
       </div>
       <div>
-        <span class="metric-label">利用者</span>
+        <span class="metric-label">監視対象</span>
         <strong id="loginSummary">ログイン 0人</strong>
       </div>
     </section>
@@ -101,8 +101,8 @@
       <article class="panel activity-panel">
         <div class="panel-heading">
           <div>
-            <h2>ログイン状態</h2>
-            <p class="muted">参加者のログイン中 / ログアウト中を確認します。</p>
+            <h2>監視対象ログイン</h2>
+            <p class="muted">指定メールアドレスのユーザーだけをRealtime Databaseで確認します。全ユーザーの初回ログインはSpreadsheetに記録します。</p>
           </div>
         </div>
         <div id="loginStates" class="activity-list tall"></div>
@@ -129,6 +129,9 @@
     const moviePresence = document.getElementById('moviePresence');
     const galleryPresence = document.getElementById('galleryPresence');
     const loginStates = document.getElementById('loginStates');
+    const MONITORED_LOGIN_STUDENT_IDS = [
+      'vga29-pc250029'
+    ];
 
     let sequences = [];
     let selected = null;
@@ -191,11 +194,12 @@
 
     watchLoginStates(data => {
       const users = Object.values(data || {})
+        .filter(user => MONITORED_LOGIN_STUDENT_IDS.includes(String(user.studentId || '').toLowerCase()))
         .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
       const onlineCount = users.filter(user => user.isLoggedIn).length;
 
-      loginSummary.textContent = `ログイン ${onlineCount}人 / 全${users.length}人`;
-      renderActivityList(loginStates, users, 'ログイン記録はまだありません');
+      loginSummary.textContent = `ログイン ${onlineCount}人 / 監視対象 ${users.length}人`;
+      renderActivityList(loginStates, users, '監視対象ユーザーのログイン記録はまだありません');
     });
 
     async function load() {

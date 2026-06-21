@@ -21,7 +21,7 @@
 
   <div id="mainPanel" class="participant-ui hidden">
     <h1>FESTIVAL COLOR</h1>
-    <p class="version-badge">v0.7.6-storage-fallback</p>
+    <p class="version-badge">v0.7.7-login-split</p>
     <p id="studentIdText">未ログイン</p>
     <p>～この画面で待機してください～</p>
     <p id="uploadStatus">アップロード待機中</p>
@@ -70,6 +70,9 @@
     const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
     const GAS_URL = "https://script.google.com/macros/s/AKfycbxJuANtJDcTL7gK_srRSsmpFD3ROZSnzAZw4Wk36ZqB-qGW6pO56Qnv0kZgCV61jbYCZw/exec";
     const CHUNK_SIZE = 2 * 1024 * 1024;
+    const REALTIME_LOGIN_EMAILS = [
+      "vga29-pc250029@sankogakuen.jp"
+    ];
 
     const firebaseConfig = {
       apiKey: "AIzaSyC7oudfhfJC7zssUb0KR98tFy_lxvVT0bI",
@@ -131,17 +134,59 @@
       }
     });
 
+    function shouldMirrorLoginToRealtime(email) {
+      return REALTIME_LOGIN_EMAILS
+        .map(value => value.toLowerCase())
+        .includes(String(email || '').toLowerCase());
+    }
+
+    async function setMonitoredLoginState(user, isLoggedIn) {
+      const email = user?.email || '';
+      if (!shouldMirrorLoginToRealtime(email)) return;
+
+      const studentId = email.split('@')[0] || localStorage.getItem('festival_student_id') || '';
+      await setUserLoginState(studentId, isLoggedIn, { pageName: 'index', email });
+    }
+
+    async function recordFirstLoginToSpreadsheet(user) {
+      const email = user?.email || '';
+      if (!email) return;
+
+      const studentId = email.split('@')[0];
+      const key = `festival_login_recorded_${studentId}`;
+      if (localStorage.getItem(key) === 'true') return;
+
+      try {
+        const res = await fetch(GAS_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain;charset=utf-8'
+          },
+          body: JSON.stringify({
+            mode: 'recordLogin',
+            studentId,
+            email,
+            schoolCode: getSchoolFolderName(),
+            createdAt: new Date().toISOString()
+          })
+        });
+        const result = await res.json();
+        if (result.success) {
+          localStorage.setItem(key, 'true');
+        }
+      } catch (error) {
+        console.warn('login sheet record failed', error);
+      }
+    }
+
     logoutBtn.addEventListener('click', async () => {
       accessToken = '';
-      const studentId = auth.currentUser?.email?.split('@')[0] || localStorage.getItem('festival_student_id') || '';
-      await setUserLoginState(studentId, false, { pageName: 'index' });
+      await setMonitoredLoginState(auth.currentUser, false);
       await signOut(auth);
     });
 
     onAuthStateChanged(auth, async user => {
       if (!user) {
-        const previousStudentId = localStorage.getItem('festival_student_id') || '';
-        await setUserLoginState(previousStudentId, false, { pageName: 'index' });
         localStorage.removeItem('festival_student_id');
         loginPanel.classList.remove('hidden');
         mainPanel.classList.add('hidden');
@@ -160,7 +205,8 @@
 
       const studentId = email.split('@')[0];
       localStorage.setItem('festival_student_id', studentId);
-      await setUserLoginState(studentId, true, { pageName: 'index', email });
+      await setMonitoredLoginState(user, true);
+      await recordFirstLoginToSpreadsheet(user);
 
       studentIdText.textContent = `ID: ${studentId}`;
       loginPanel.classList.add('hidden');
