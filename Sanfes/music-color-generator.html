@@ -172,6 +172,30 @@
       return list[index % list.length];
     }
 
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function getVolumeReference(volumes) {
+      const sorted = [...volumes].sort((a, b) => a - b);
+      const index = Math.floor(sorted.length * 0.9);
+      return sorted[index] || Math.max(...volumes, 0.001);
+    }
+
+    function applyVolumeIntensity(hexColor, volume, reference, isBeat) {
+      const clean = hexColor.replace('#', '');
+      const r = parseInt(clean.slice(0, 2), 16);
+      const g = parseInt(clean.slice(2, 4), 16);
+      const b = parseInt(clean.slice(4, 6), 16);
+      const normalized = reference > 0 ? clamp(volume / reference, 0, 1) : 0;
+      const curve = Math.pow(normalized, 0.65);
+      const intensity = clamp((isBeat ? 0.35 : 0.18) + curve * (isBeat ? 0.8 : 0.62), 0.12, 1.15);
+
+      const toHex = value => clamp(Math.round(value), 0, 255).toString(16).padStart(2, '0');
+
+      return `#${toHex(r * intensity)}${toHex(g * intensity)}${toHex(b * intensity)}`;
+    }
+
     async function decodeAudioFromVideoFile(file) {
       const audioContext = new AudioContext();
       const arrayBuffer = await file.arrayBuffer();
@@ -234,6 +258,7 @@
       }
 
       const palette = getThemeColors(theme);
+      const volumeReference = getVolumeReference(volumes);
       const result = [];
 
       let beatIndex = 0;
@@ -270,10 +295,13 @@
           baseIndex++;
         }
 
+        color = applyVolumeIntensity(color, volume, volumeReference, isBeat);
+
         result.push({
           time: Number(t.toFixed(3)),
           color,
           volume: Number(volume.toFixed(6)),
+          intensity: Number((volumeReference > 0 ? clamp(volume / volumeReference, 0, 1) : 0).toFixed(6)),
           lift: Number(lift.toFixed(6)),
           beat: isBeat
         });
