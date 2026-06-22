@@ -42,15 +42,6 @@
           <input id="file" type="file" accept="video/mp4,video/quicktime,video/*" />
         </label>
 
-        <div class="youtube-source-panel">
-          <label>
-            <span>YouTube URL</span>
-            <input id="youtubeUrl" type="url" placeholder="https://www.youtube.com/watch?v=..." />
-          </label>
-          <button id="loadYoutube" type="button">参照動画を表示</button>
-          <p class="muted">YouTubeは直接抽出できないため、Color Editor用の参照として表示します。</p>
-        </div>
-
         <div class="field-grid">
           <label>
             <span>シーケンス名</span>
@@ -106,7 +97,6 @@
         </div>
 
         <video id="video" controls muted playsinline></video>
-        <div id="youtubePreview" class="youtube-preview hidden"></div>
         <canvas id="canvas" style="display:none;"></canvas>
         <div id="colors" class="colors color-timeline"></div>
       </article>
@@ -188,8 +178,6 @@
     const fileInput = document.getElementById('file');
     const nameInput = document.getElementById('name');
     const intervalInput = document.getElementById('interval');
-    const youtubeUrlInput = document.getElementById('youtubeUrl');
-    const loadYoutubeBtn = document.getElementById('loadYoutube');
     const extractBtn = document.getElementById('extract');
     const saveBtn = document.getElementById('save');
     const clearBtn = document.getElementById('clear');
@@ -199,7 +187,6 @@
     const clearEditorBtn = document.getElementById('clearEditor');
     const status = document.getElementById('status');
     const video = document.getElementById('video');
-    const youtubePreview = document.getElementById('youtubePreview');
     const canvas = document.getElementById('canvas');
     const colors = document.getElementById('colors');
 
@@ -237,62 +224,9 @@
       if (!file) return;
 
       video.src = URL.createObjectURL(file);
-      video.classList.remove('hidden');
-      youtubePreview.classList.add('hidden');
-      youtubePreview.innerHTML = '';
       status.textContent = `読み込み完了: ${file.name}`;
       frames = [];
       colors.innerHTML = '';
-    });
-
-    function getYoutubeVideoId(url) {
-      try {
-        const parsed = new URL(url);
-
-        if (parsed.hostname.includes('youtu.be')) {
-          return parsed.pathname.replace('/', '').trim();
-        }
-
-        if (parsed.hostname.includes('youtube.com')) {
-          if (parsed.pathname.startsWith('/shorts/')) {
-            return parsed.pathname.split('/')[2] || '';
-          }
-
-          if (parsed.pathname.startsWith('/embed/')) {
-            return parsed.pathname.split('/')[2] || '';
-          }
-
-          return parsed.searchParams.get('v') || '';
-        }
-      } catch (error) {
-        return '';
-      }
-
-      return '';
-    }
-
-    loadYoutubeBtn.addEventListener('click', () => {
-      const videoId = getYoutubeVideoId(youtubeUrlInput.value);
-
-      if (!videoId) {
-        alert('YouTube URLを確認してください');
-        return;
-      }
-
-      video.pause();
-      video.removeAttribute('src');
-      video.load();
-      video.classList.add('hidden');
-      youtubePreview.classList.remove('hidden');
-      youtubePreview.innerHTML = `
-        <iframe
-          src="https://www.youtube.com/embed/${escapeHtml(videoId)}"
-          title="YouTube preview"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          allowfullscreen>
-        </iframe>
-      `;
-      status.textContent = 'YouTube参照動画を表示しました。Color Editorでシーケンスを作成してください。';
     });
 
     function waitVideoSeek() {
@@ -351,7 +285,7 @@
 
     extractBtn.addEventListener('click', async () => {
       if (!video.src) {
-        alert('抽出する場合は、端末内の動画ファイルを選択してください。YouTubeは参照表示のみ対応です。');
+        alert('動画を選択してください');
         return;
       }
 
