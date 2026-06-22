@@ -9,7 +9,14 @@
 </head>
 
 <body>
-  <main class="wrap app-console">
+  <section id="adminLoginPanel" class="login-panel">
+    <h1>Admin Login</h1>
+    <p>管理者アカウントでログインしてください</p>
+    <button id="adminLoginBtn" class="primary" type="button">Googleでログイン</button>
+    <p id="adminLoginMessage"></p>
+  </section>
+
+  <main id="adminApp" class="wrap app-console hidden">
     <header class="app-topbar">
       <div>
         <p class="page-kicker">運営コントロール</p>
@@ -18,6 +25,8 @@
         <p class="muted">カラー演出の再生、手動カラー送信、各ページの入退室とログイン状態を確認できます。</p>
       </div>
       <nav class="app-nav">
+        <span id="adminUserText" class="status">未ログイン</span>
+        <button id="adminLogoutBtn" class="danger" type="button">ログアウト</button>
         <a class="btn" href="movie.html">カラー編集</a>
         <a class="btn" href="gallery.html">ギャラリー</a>
         <a class="btn" href="index.html">参加者画面</a>
@@ -99,16 +108,19 @@
             <h3>Gallery画面</h3>
             <div id="galleryPresence" class="activity-list"></div>
           </div>
-          <div>
-            <h3>監視対象</h3>
-            <div id="loginStates" class="activity-list"></div>
-          </div>
         </div>
       </article>
     </section>
   </main>
 
   <script type="module">
+    import {
+      getAuth,
+      GoogleAuthProvider,
+      signInWithPopup,
+      onAuthStateChanged,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
     import {
       getSequences,
       setActiveSession,
@@ -118,7 +130,17 @@
       watchLoginStates
     } from './realtime.js';
 
+    const ADMIN_EMAILS = [
+      'vga29-pc250029@sankogakuen.jp',
+      'vga29-pc250006@sankogakuen.jp'
+    ];
     const list = document.getElementById('list');
+    const adminLoginPanel = document.getElementById('adminLoginPanel');
+    const adminApp = document.getElementById('adminApp');
+    const adminLoginBtn = document.getElementById('adminLoginBtn');
+    const adminLogoutBtn = document.getElementById('adminLogoutBtn');
+    const adminLoginMessage = document.getElementById('adminLoginMessage');
+    const adminUserText = document.getElementById('adminUserText');
     const selectedText = document.getElementById('selected');
     const mode = document.getElementById('mode');
     const liveState = document.getElementById('liveState');
@@ -136,9 +158,30 @@
     let sequences = [];
     let selected = null;
     let timer = null;
+    let dashboardStarted = false;
 
-    mode.textContent = await modeLabel();
-    setPagePresence('admin', localStorage.getItem('festival_student_id') || 'admin');
+    const auth = getAuth();
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ hd: 'sankogakuen.jp' });
+
+    function isAdminEmail(email) {
+      return ADMIN_EMAILS.includes(String(email || '').toLowerCase());
+    }
+
+    adminLoginBtn.addEventListener('click', async () => {
+      adminLoginMessage.textContent = 'ログイン中...';
+
+      try {
+        await signInWithPopup(auth, provider);
+      } catch (error) {
+        console.error(error);
+        adminLoginMessage.textContent = 'ログインに失敗しました';
+      }
+    });
+
+    adminLogoutBtn.addEventListener('click', async () => {
+      await signOut(auth);
+    });
 
     function formatClock(value) {
       if (!value) return '-';
@@ -186,22 +229,30 @@
         .slice(0, 12);
     }
 
-    watchPagePresence(data => {
-      renderActivityList(indexPresence, flattenPresence(data, 'index'), 'メイン画面の入退室はまだありません');
-      renderActivityList(adminPresence, flattenPresence(data, 'admin'), '管理画面の入退室はまだありません');
-      renderActivityList(moviePresence, flattenPresence(data, 'movie'), 'Movie画面の入退室はまだありません');
-      renderActivityList(galleryPresence, flattenPresence(data, 'gallery'), 'Gallery画面の入退室はまだありません');
-    });
+    function startDashboardWatchers() {
+      if (dashboardStarted) return;
+      dashboardStarted = true;
 
-    watchLoginStates(data => {
-      const users = Object.values(data || {})
-        .filter(user => MONITORED_LOGIN_STUDENT_IDS.includes(String(user.studentId || '').toLowerCase()))
-        .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
-      const onlineCount = users.filter(user => user.isLoggedIn).length;
+      watchPagePresence(data => {
+        renderActivityList(indexPresence, flattenPresence(data, 'index'), 'メイン画面の入退室はまだありません');
+        renderActivityList(adminPresence, flattenPresence(data, 'admin'), '管理画面の入退室はまだありません');
+        renderActivityList(moviePresence, flattenPresence(data, 'movie'), 'Movie画面の入退室はまだありません');
+        renderActivityList(galleryPresence, flattenPresence(data, 'gallery'), 'Gallery画面の入退室はまだありません');
+      });
 
-      loginSummary.textContent = `ログイン ${onlineCount}人 / 監視対象 ${users.length}人`;
-      renderActivityList(loginStates, users, '監視対象ユーザーのログイン記録はまだありません');
-    });
+      watchLoginStates(data => {
+        const users = Object.values(data || {})
+          .filter(user => MONITORED_LOGIN_STUDENT_IDS.includes(String(user.studentId || '').toLowerCase()))
+          .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
+        const onlineCount = users.filter(user => user.isLoggedIn).length;
+
+        loginSummary.textContent = `ログイン ${onlineCount}人 / 事前設定 ${users.length}人`;
+
+        if (loginStates) {
+          renderActivityList(loginStates, users, '事前設定ユーザーのログイン記録はまだありません');
+        }
+      });
+    }
 
     async function load() {
       sequences = await getSequences();
@@ -329,7 +380,40 @@
       liveState.textContent = '暗転 #000000';
     });
 
-    load();
+    async function openAdmin(user) {
+      const email = user.email || '';
+      const studentId = email.split('@')[0] || 'admin';
+
+      localStorage.setItem('festival_student_id', studentId);
+      adminUserText.textContent = studentId;
+      adminLoginPanel.classList.add('hidden');
+      adminApp.classList.remove('hidden');
+      adminLoginMessage.textContent = '';
+
+      mode.textContent = await modeLabel();
+      await setPagePresence('admin', studentId);
+      startDashboardWatchers();
+      await load();
+    }
+
+    onAuthStateChanged(auth, async user => {
+      if (!user) {
+        adminApp.classList.add('hidden');
+        adminLoginPanel.classList.remove('hidden');
+        adminLoginMessage.textContent = '';
+        return;
+      }
+
+      if (!isAdminEmail(user.email)) {
+        adminApp.classList.add('hidden');
+        adminLoginPanel.classList.remove('hidden');
+        adminLoginMessage.textContent = 'このアカウントは管理画面に入れません';
+        await signOut(auth);
+        return;
+      }
+
+      await openAdmin(user);
+    });
   </script>
 </body>
 
