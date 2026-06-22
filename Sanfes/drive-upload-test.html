@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Drive Upload Test</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+  <main class="wrap app-console">
+    <header class="app-topbar">
+      <div>
+        <p class="page-kicker">Drive負荷確認</p>
+        <h1>Drive Upload Test</h1>
+        <p class="muted">Google Drive APIへ小さなテストファイルを直接アップロードし、速度と成否を確認します。</p>
+      </div>
+      <nav class="app-nav">
+        <a class="btn" href="index.html">参加者画面</a>
+        <a class="btn" href="admin.html">管理画面</a>
+      </nav>
+    </header>
+
+    <section class="panel">
+      <div class="field-grid">
+        <label>
+          <span>テスト用ID</span>
+          <input id="studentId" type="text" value="vga29-pc250029" />
+        </label>
+        <label>
+          <span>並列数</span>
+          <input id="parallelCount" type="number" min="1" max="10" value="3" />
+        </label>
+      </div>
+
+      <div class="studio-actions">
+        <button id="startTest" class="primary" type="button">Driveアップロードテスト開始</button>
+        <label class="inline-check">
+          <input id="deleteAfterUpload" type="checkbox" checked />
+          <span>完了後にテストファイルを削除</span>
+        </label>
+      </div>
+
+      <p id="status" class="status">待機中</p>
+    </section>
+
+    <section class="panel">
+      <h2>結果</h2>
+      <div id="resultList" class="activity-list"></div>
+    </section>
+  </main>
+
+  <script type="module">
+    const GOOGLE_CLIENT_ID = "819550776861-btle4ghnr6lb560p3oua2akksiuvbm3o.apps.googleusercontent.com";
+    const GOOGLE_DRIVE_FOLDER_ID = "1r7rKCri1my5jNO2OMV_4G3B9gos8kSAG";
+    const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+    const CHUNK_SIZE = 2 * 1024 * 1024;
+
+    const startTest = document.getElementById('startTest');
+    const studentIdInput = document.getElementById('studentId');
+    const parallelCountInput = document.getElementById('parallelCount');
+    const deleteAfterUploadInput = document.getElementById('deleteAfterUpload');
+    const status = document.getElementById('status');
+    const resultList = document.getElementById('resultList');
+
+    let tokenClient = null;
+    let accessToken = '';
+    let schoolFolderId = '';
+
+    function escapeHtml(text) {
+      return String(text ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function waitForGoogleIdentity() {
+      return new Promise((resolve, reject) => {
+        const startedAt = Date.now();
+        const timerId = setInterval(() => {
+          if (window.google?.accounts?.oauth2) {
+            clearInterval(timerId);
+            resolve();
+            return;
+          }
+
+          if (Date.now() - startedAt > 10000) {
+            clearInterval(timerId);
+            reject(new Error('Google認証ライブラリの読み込みに失敗しました'));
+          }
+        }, 100);
+      });
+    }
+
+    async function getGoogleAccessToken() {
+      await waitForGoogleIdentity();
+
+      if (accessToken) return accessToken;
+
+      return new Promise((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Google Drive認証が完了しませんでした'));
+        }, 20000);
+
+        tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: GOOGLE_CLIENT_ID,
+          scope: GOOGLE_DRIVE_SCOPE,
+          callback: response => {
+            clearTimeout(timeoutId);
+
+            if (response.error) {
+              reject(new Error(response.error));
+              return;
+            }
+
+            accessToken = response.access_token;
+            resolve(accessToken);
+          }
+        });
+
+        tokenClient.requestAccessToken({ prompt: '' });
+      });
+    }
+
+    function escapeDriveQueryValue(value) {
+      return String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    }
+
+    function getSchoolFolderName() {
+      const studentId = String(studentIdInput.value || '').toLowerCase();
+      const match = studentId.match(/^vga\d{2}-([a-z]{2})/);
+      return match?.[1] || 'unknown';
+    }
+
+    async function driveFetch(url, options, token) {
+      const res = await fetch(url, {
+        ...options,
+        headers: {
+          ...(options.headers || {}),
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (res.status === 401) {
+        accessToken = '';
+        throw new Error('Drive認証が切れました。もう一度開始してください');
+      }
+
+      return res;
+    }
+
+    async function ensureSchoolDriveFolder(token) {
+      if (schoolFolderId) return schoolFolderId;
+
+      const folderName = getSchoolFolderName();
+      const escapedName = escapeDriveQueryValue(folderName);
+      const escapedParent = escapeDriveQueryValue(GOOGLE_DRIVE_FOLDER_ID);
+      const query = [
+        "mimeType='application/vnd.google-apps.folder'",
+        `name='${escapedName}'`,
+        `'${escapedParent}' in parents`,
+        'trashed=false'
+      ].join(' and ');
+
+      const searchUrl = [
+        'https://www.googleapis.com/drive/v3/files',
+        '?supportsAllDrives=true',
+        '&includeItemsFromAllDrives=true',
+        '&spaces=drive',
+        '&fields=files(id,name)',
+        `&q=${encodeURIComponent(query)}`
+      ].join('');
+
+      const searchRes = await driveFetch(searchUrl, { method: 'GET' }, token);
+      if (!searchRes.ok) throw new Error(await searchRes.text());
+
+      const found = await searchRes.json();
+      if (found.files?.[0]?.id) {
+        schoolFolderId = found.files[0].id;
+        return schoolFolderId;
+      }
+
+      const createRes = await driveFetch('https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&fields=id,name', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: folderName,
+          mimeType: 'application/vnd.google-apps.folder',
+          parents: [GOOGLE_DRIVE_FOLDER_ID]
+        })
+      }, token);
+
+      if (!createRes.ok) throw new Error(await createRes.text());
+
+      const created = await createRes.json();
+      schoolFolderId = created.id;
+      return schoolFolderId;
+    }
+
+    async function startDriveResumableSession(blob, fileName, token, parentFolderId) {
+      const res = await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true&fields=id,name,size,webViewLink', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'X-Upload-Content-Type': blob.type || 'application/octet-stream',
+          'X-Upload-Content-Length': String(blob.size)
+        },
+        body: JSON.stringify({
+          name: fileName,
+          parents: [parentFolderId],
+          mimeType: blob.type || 'application/octet-stream'
+        })
+      }, token);
+
+      if (!res.ok) throw new Error(await res.text());
+
+      const uploadUrl = res.headers.get('Location');
+      if (!uploadUrl) throw new Error('DriveアップロードURLを取得できませんでした');
+      return uploadUrl;
+    }
+
+    async function uploadBlob(blob, fileName, token, parentFolderId) {
+      const startedAt = performance.now();
+      const uploadUrl = await startDriveResumableSession(blob, fileName, token, parentFolderId);
+      let start = 0;
+
+      while (start < blob.size) {
+        const end = Math.min(start + CHUNK_SIZE, blob.size);
+        const chunk = blob.slice(start, end, blob.type);
+        const res = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': blob.type,
+            'Content-Range': `bytes ${start}-${end - 1}/${blob.size}`
+          },
+          body: chunk
+        });
+
+        if (res.status === 308) {
+          start = end;
+          continue;
+        }
+
+        if (res.ok) {
+          const file = await res.json();
+          const elapsedMs = performance.now() - startedAt;
+          return {
+            file,
+            elapsedMs,
+            mbps: (blob.size / 1024 / 1024) / (elapsedMs / 1000)
+          };
+        }
+
+        throw new Error(await res.text());
+      }
+
+      throw new Error('アップロード完了レスポンスを取得できませんでした');
+    }
+
+    async function deleteDriveFile(fileId, token) {
+      const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true`, {
+        method: 'DELETE'
+      }, token);
+
+      if (!res.ok && res.status !== 404) throw new Error(await res.text());
+    }
+
+    function makeBlob(sizeBytes, label) {
+      const chunk = `Sanfes Drive upload test ${label} ${new Date().toISOString()}\n`;
+      const parts = [];
+      let remaining = sizeBytes;
+
+      while (remaining > 0) {
+        const text = chunk.slice(0, Math.min(chunk.length, remaining));
+        parts.push(text);
+        remaining -= text.length;
+      }
+
+      return new Blob(parts, { type: 'text/plain' });
+    }
+
+    function renderResult(row) {
+      const div = document.createElement('div');
+      div.className = `activity-row ${row.ok ? 'is-online' : 'is-offline'}`;
+      div.innerHTML = `
+        <div>
+          <b>${escapeHtml(row.name)}</b>
+          <span>${escapeHtml(row.message)}</span>
+        </div>
+        <strong>${row.ok ? '成功' : '失敗'}</strong>
+        <time>${escapeHtml(row.time)}</time>
+      `;
+      resultList.prepend(div);
+    }
+
+    async function runOneTest(token, parentFolderId, index, sizeBytes) {
+      const sizeLabel = `${Math.round(sizeBytes / 1024)}KB`;
+      const fileName = `__sanfes_drive_test_${Date.now()}_${index}_${sizeLabel}.txt`;
+      const blob = makeBlob(sizeBytes, fileName);
+
+      const uploaded = await uploadBlob(blob, fileName, token, parentFolderId);
+
+      if (deleteAfterUploadInput.checked) {
+        await deleteDriveFile(uploaded.file.id, token);
+      }
+
+      renderResult({
+        ok: true,
+        name: fileName,
+        message: `${(blob.size / 1024 / 1024).toFixed(2)}MB / ${(uploaded.elapsedMs / 1000).toFixed(2)}秒 / ${uploaded.mbps.toFixed(2)}MB/s${deleteAfterUploadInput.checked ? ' / 削除済み' : ''}`,
+        time: new Date().toLocaleTimeString('ja-JP')
+      });
+    }
+
+    startTest.addEventListener('click', async () => {
+      startTest.disabled = true;
+      resultList.innerHTML = '';
+      status.textContent = 'Drive認証中...';
+
+      try {
+        const token = await getGoogleAccessToken();
+        status.textContent = '保存先フォルダ確認中...';
+        const parentFolderId = await ensureSchoolDriveFolder(token);
+        const parallelCount = Math.max(1, Math.min(10, Number(parallelCountInput.value) || 3));
+        const sizes = [1024, 1024 * 1024, 5 * 1024 * 1024];
+        const tests = Array.from({ length: parallelCount }, (_, index) => sizes[index % sizes.length]);
+
+        status.textContent = `${tests.length}件アップロード中...`;
+        await Promise.all(tests.map((size, index) => runOneTest(token, parentFolderId, index + 1, size)));
+        status.textContent = `完了: ${tests.length}件`;
+      } catch (error) {
+        console.error(error);
+        status.textContent = `失敗: ${error.message}`;
+        renderResult({
+          ok: false,
+          name: 'Drive upload test',
+          message: error.message,
+          time: new Date().toLocaleTimeString('ja-JP')
+        });
+      } finally {
+        startTest.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
