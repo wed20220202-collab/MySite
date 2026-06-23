@@ -40,6 +40,7 @@
       <button id="takePhoto" type="button" title="写真を撮影">&#128248;</button>
       <button id="recordToggle" class="record-toggle" type="button" title="動画を撮影">&#9679;</button>
       <button id="switchCamera" type="button" title="前面/背面を切り替え">↻</button>
+      <button id="torchToggle" type="button" title="フラッシュ連動" disabled>⚡</button>
       <button id="openGallery" type="button" title="ギャラリーを開く">&#128444;</button>
     </div>
 
@@ -114,6 +115,7 @@
     const takePhotoBtn = document.getElementById('takePhoto');
     const recordToggleBtn = document.getElementById('recordToggle');
     const switchCameraBtn = document.getElementById('switchCamera');
+    const torchToggleBtn = document.getElementById('torchToggle');
     const openGalleryBtn = document.getElementById('openGallery');
     const cameraStatus = document.getElementById('cameraStatus');
 
@@ -127,6 +129,11 @@
     let currentFacingMode = 'environment';
     let loginHeartbeatTimer = null;
     let currentLoginUser = null;
+    let torchSupported = false;
+    let torchSyncEnabled = false;
+    let torchIsOn = false;
+    let torchPulseTimer = null;
+    let lastTorchPulseAt = 0;
 
     loginBtn.addEventListener('click', async () => {
       loginMessage.textContent = 'ログイン中...';
@@ -270,6 +277,8 @@
       status.textContent = session.isPlaying
         ? `受信中: ${session.sequenceName || 'manual'}`
         : '停止中';
+
+      syncTorchWithSession(session, color);
     }
 
     watchActiveSession(applyColor);
@@ -765,6 +774,115 @@
       return new Promise(resolve => setTimeout(resolve, ms));
     }
 
+    function getVideoTrack() {
+      return cameraStream?.getVideoTracks?.()[0] || null;
+    }
+
+    function updateTorchButton() {
+      const canUseTorch = torchSupported && currentFacingMode === 'environment' && Boolean(getVideoTrack());
+      torchToggleBtn.disabled = !canUseTorch;
+      torchToggleBtn.classList.toggle('is-active', torchSyncEnabled && canUseTorch);
+      torchToggleBtn.setAttribute(
+        'title',
+        canUseTorch
+          ? (torchSyncEnabled ? 'フラッシュ連動を停止' : 'フラッシュ連動を開始')
+          : 'この端末またはカメラはフラッシュに未対応です'
+      );
+
+      if (!canUseTorch) {
+        torchSyncEnabled = false;
+      }
+    }
+
+    async function refreshTorchCapability() {
+      const track = getVideoTrack();
+      const capabilities = track?.getCapabilities?.() || {};
+      torchSupported = Boolean(capabilities.torch);
+      updateTorchButton();
+    }
+
+    async function setTorch(on) {
+      const track = getVideoTrack();
+      if (!track || !torchSupported) return;
+
+      try {
+        await track.applyConstraints({ advanced: [{ torch: on }] });
+        torchIsOn = on;
+      } catch (error) {
+        console.warn('フラッシュライト制御に失敗しました', error);
+        torchSupported = false;
+        torchSyncEnabled = false;
+        torchIsOn = false;
+        updateTorchButton();
+      }
+    }
+
+    function getColorBrightness(color) {
+      const match = String(color || '').match(/^#?([0-9a-f]{6})$/i);
+      if (!match) return 0;
+
+      const hex = match[1];
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+
+      return (r * 0.299) + (g * 0.587) + (b * 0.114);
+    }
+
+    async function pulseTorch() {
+      clearTimeout(torchPulseTimer);
+      await setTorch(true);
+
+      torchPulseTimer = setTimeout(() => {
+        setTorch(false);
+      }, 90);
+    }
+
+    function syncTorchWithSession(session, color) {
+      if (!torchSyncEnabled || !torchSupported || currentFacingMode !== 'environment') return;
+
+      if (!session.isPlaying || getColorBrightness(color) < 24) {
+        clearTimeout(torchPulseTimer);
+        if (torchIsOn) setTorch(false);
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastTorchPulseAt < 140) return;
+
+      lastTorchPulseAt = now;
+      pulseTorch();
+    }
+
+    async function toggleTorchSync() {
+      if (!cameraStream) {
+        alert('先に背面カメラを起動してください');
+        return;
+      }
+
+      if (currentFacingMode !== 'environment') {
+        alert('フラッシュライトは背面カメラで使用してください');
+        return;
+      }
+
+      await refreshTorchCapability();
+
+      if (!torchSupported) {
+        alert('この端末またはブラウザはフラッシュライト制御に対応していません');
+        return;
+      }
+
+      torchSyncEnabled = !torchSyncEnabled;
+      updateTorchButton();
+
+      if (!torchSyncEnabled) {
+        clearTimeout(torchPulseTimer);
+        await setTorch(false);
+      }
+
+      cameraStatus.textContent = torchSyncEnabled ? 'フラッシュ連動ON' : 'フラッシュ連動OFF';
+    }
+
     async function openCamera() {
       try {
         cameraStatus.textContent = 'Google Driveへ接続中...';
@@ -782,6 +900,7 @@
         });
 
         cameraPreview.srcObject = cameraStream;
+        await refreshTorchCapability();
         miniCamera.classList.remove('hidden');
         openCameraBtn.classList.add('is-open');
         openCameraBtn.setAttribute('aria-label', 'カメラを閉じる');
@@ -797,11 +916,18 @@
         mediaRecorder.stop();
       }
 
+      torchSyncEnabled = false;
+      clearTimeout(torchPulseTimer);
+      if (torchIsOn) setTorch(false);
+
       if (cameraStream) {
         cameraStream.getTracks().forEach(track => track.stop());
         cameraStream = null;
       }
 
+      torchSupported = false;
+      torchIsOn = false;
+      updateTorchButton();
       cameraPreview.srcObject = null;
       miniCamera.classList.add('hidden');
       openCameraBtn.classList.remove('is-open');
@@ -959,6 +1085,11 @@
       cameraStream.getTracks().forEach(track => track.stop());
       cameraStream = null;
       cameraPreview.srcObject = null;
+      torchSyncEnabled = false;
+      torchSupported = false;
+      torchIsOn = false;
+      clearTimeout(torchPulseTimer);
+      updateTorchButton();
 
       try {
         cameraStream = await navigator.mediaDevices.getUserMedia({
@@ -972,6 +1103,7 @@
         });
 
         cameraPreview.srcObject = cameraStream;
+        await refreshTorchCapability();
         cameraStatus.textContent = currentFacingMode === 'environment' ? '背面カメラ' : '前面カメラ';
       } catch (error) {
         console.error(error);
@@ -1002,6 +1134,7 @@
     takePhotoBtn.addEventListener('click', takePhoto);
     recordToggleBtn.addEventListener('click', toggleRecord);
     switchCameraBtn.addEventListener('click', switchCameraFacing);
+    torchToggleBtn.addEventListener('click', toggleTorchSync);
     openGalleryBtn.addEventListener('click', () => {
       window.location.href = 'gallery.html';
     });

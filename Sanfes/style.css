@@ -315,7 +315,7 @@ video {
 
 .mini-controls {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 4px;
   padding: 6px;
 }
@@ -619,6 +619,12 @@ button.danger,
 
 .mini-controls button {
   background: #f8fbff;
+}
+
+.mini-controls button.is-active {
+  border-color: #f59e0b;
+  background: #fff7d6;
+  color: #92400e;
 }
 
 #openGallery {
