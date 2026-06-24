@@ -890,9 +890,11 @@
 
         if (session.torchCueActive) {
           lastTorchPulseAt = Date.now();
-          if (!torchIsOn) setTorch(true);
-        } else if (torchIsOn) {
-          setTorch(false);
+          lastTorchReason = 'cue active';
+          setTorch(true);
+        } else {
+          lastTorchReason = 'cue inactive';
+          if (torchIsOn) setTorch(false);
         }
 
         updateTorchDebugPanel();
