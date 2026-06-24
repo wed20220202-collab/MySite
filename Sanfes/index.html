@@ -858,6 +858,20 @@
         return;
       }
 
+      if (session.hasTorchCues) {
+        clearTimeout(torchPulseTimer);
+        lastTorchFrameIndex = -1;
+
+        if (session.torchCueActive) {
+          lastTorchPulseAt = Date.now();
+          if (!torchIsOn) setTorch(true);
+        } else if (torchIsOn) {
+          setTorch(false);
+        }
+
+        return;
+      }
+
       if ((hasBeatInfo && !session.beat) || (!hasBeatInfo && getColorBrightness(color) < 24)) {
         return;
       }

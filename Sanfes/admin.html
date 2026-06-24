@@ -285,6 +285,20 @@
       });
     }
 
+    function normalizeTorchCues(sequence) {
+      return (sequence?.torchCues || [])
+        .map(cue => ({
+          time: Math.max(0, Number(cue?.time || 0)),
+          duration: Math.max(0.1, Number(cue?.duration || 0))
+        }))
+        .filter(cue => Number.isFinite(cue.time) && Number.isFinite(cue.duration))
+        .sort((a, b) => a.time - b.time);
+    }
+
+    function isTorchCueActive(torchCues, elapsedSec) {
+      return torchCues.some(cue => elapsedSec >= cue.time && elapsedSec < cue.time + cue.duration);
+    }
+
     async function stop() {
       clearInterval(timer);
       timer = null;
@@ -294,6 +308,8 @@
         color: '#000000',
         beat: false,
         intensity: 0,
+        hasTorchCues: false,
+        torchCueActive: false,
         torchPulseMs: selected?.torchPulseMs || 180,
         torchCooldownMs: selected?.torchCooldownMs || 140,
         sequenceId: selected?.id || null,
@@ -317,6 +333,7 @@
       const startTime = performance.now();
       const videoDuration = selected.duration || selected.frames.at(-1).time || 0;
       const totalFrames = selected.frames.length;
+      const torchCues = normalizeTorchCues(selected);
 
       const tick = async () => {
         const elapsedSec = (performance.now() - startTime) / 1000;
@@ -345,6 +362,8 @@
           intensity: Number(frame.intensity || 0),
           volume: Number(frame.volume || 0),
           lift: Number(frame.lift || 0),
+          hasTorchCues: torchCues.length > 0,
+          torchCueActive: isTorchCueActive(torchCues, elapsedSec),
           torchPulseMs: Number(selected.torchPulseMs || 180),
           torchCooldownMs: Number(selected.torchCooldownMs || 140),
           sequenceId: selected.id,
@@ -374,6 +393,8 @@
         color,
         beat: true,
         intensity: 1,
+        hasTorchCues: false,
+        torchCueActive: false,
         torchPulseMs: 180,
         torchCooldownMs: 140,
         sequenceName: 'manual'
@@ -390,6 +411,8 @@
         color: '#000000',
         beat: false,
         intensity: 0,
+        hasTorchCues: false,
+        torchCueActive: false,
         torchPulseMs: 180,
         torchCooldownMs: 140,
         sequenceName: 'blackout'

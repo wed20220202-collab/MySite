@@ -1276,6 +1276,68 @@ button.danger,
   width: 100%;
 }
 
+.torch-timeline-editor {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--stroke);
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.torch-timeline {
+  position: relative;
+  height: 78px;
+  overflow: hidden;
+  border: 1px solid #d9e5f7;
+  border-radius: 14px;
+  background:
+    linear-gradient(90deg, rgba(37, 99, 235, 0.12) 1px, transparent 1px) 0 0 / 10% 100%,
+    linear-gradient(180deg, #f9fbff, #eef6ff);
+  cursor: crosshair;
+}
+
+.torch-timeline-base {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 50%;
+  height: 4px;
+  border-radius: 999px;
+  background: #c8d8ed;
+  transform: translateY(-50%);
+}
+
+.torch-cue-bar {
+  position: absolute;
+  top: 18px;
+  bottom: 18px;
+  min-width: 8px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #facc15, #fb923c);
+  box-shadow: 0 10px 24px rgba(251, 146, 60, 0.28);
+}
+
+.torch-cue-rows {
+  display: grid;
+  gap: 8px;
+}
+
+.torch-cue-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) minmax(90px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.torch-cue-row input {
+  width: 100%;
+}
+
 @media (max-width: 860px) {
   .app-topbar {
     flex-direction: column;
@@ -1295,7 +1357,8 @@ button.danger,
 
   .field-grid.two-col,
   .frame-editor-head,
-  .frame-row {
+  .frame-row,
+  .torch-cue-row {
     grid-template-columns: 1fr;
   }
 

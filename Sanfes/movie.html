@@ -177,6 +177,35 @@
             </div>
             <div id="frameRows" class="frame-rows"></div>
           </div>
+
+          <div class="torch-timeline-editor">
+            <div class="panel-heading compact-heading">
+              <div>
+                <h2>ライトタイムライン</h2>
+                <p class="muted">秒単位でライトを点灯させる区間を編集します。</p>
+              </div>
+            </div>
+
+            <div id="torchTimeline" class="torch-timeline" title="クリックした位置を開始秒に設定"></div>
+
+            <div class="field-grid two-col">
+              <label>
+                <span>開始 秒</span>
+                <input id="torchCueStart" type="number" min="0" step="0.1" value="0" />
+              </label>
+              <label>
+                <span>長さ 秒</span>
+                <input id="torchCueDuration" type="number" min="0.1" step="0.1" value="0.3" />
+              </label>
+            </div>
+
+            <div class="studio-actions compact">
+              <button id="addTorchCue" class="primary" type="button">ライト区間を追加</button>
+              <button id="clearTorchCues" type="button">ライト区間を全削除</button>
+            </div>
+
+            <div id="torchCueRows" class="torch-cue-rows"></div>
+          </div>
         </form>
       </article>
     </section>
@@ -223,6 +252,12 @@
     const duplicateBtn = document.getElementById('duplicateSequence');
     const addFrameBtn = document.getElementById('addFrame');
     const deleteBtn = document.getElementById('deleteSequence');
+    const torchTimeline = document.getElementById('torchTimeline');
+    const torchCueStart = document.getElementById('torchCueStart');
+    const torchCueDuration = document.getElementById('torchCueDuration');
+    const addTorchCueBtn = document.getElementById('addTorchCue');
+    const clearTorchCuesBtn = document.getElementById('clearTorchCues');
+    const torchCueRows = document.getElementById('torchCueRows');
 
     let frames = [];
     let sequences = [];
@@ -409,6 +444,7 @@
         duration: Number(sequenceDuration.value || (editedFrames.at(-1)?.time || 0)),
         torchPulseMs: Number(sequenceTorchPulseMs.value || 180),
         torchCooldownMs: Number(sequenceTorchCooldownMs.value || 140),
+        torchCues: getTorchCuesFromRows(),
         frames: editedFrames
       };
     }
@@ -464,6 +500,87 @@
       frameCount.value = `${frameRows.querySelectorAll('.frame-row').length}フレーム`;
     }
 
+    function getSequenceDurationValue() {
+      return Math.max(
+        0.1,
+        Number(sequenceDuration.value || 0),
+        Number(selected?.duration || 0),
+        Number(selected?.frames?.at(-1)?.time || 0)
+      );
+    }
+
+    function normalizeTorchCue(cue) {
+      return {
+        time: Math.max(0, Number(cue?.time || 0)),
+        duration: Math.max(0.1, Number(cue?.duration || 0.3))
+      };
+    }
+
+    function getTorchCuesFromRows() {
+      return Array.from(torchCueRows.querySelectorAll('.torch-cue-row'))
+        .map(row => normalizeTorchCue({
+          time: row.querySelector('[data-field="cue-time"]').value,
+          duration: row.querySelector('[data-field="cue-duration"]').value
+        }))
+        .sort((a, b) => a.time - b.time);
+    }
+
+    function renderTorchTimeline(cues) {
+      const duration = getSequenceDurationValue();
+      torchTimeline.innerHTML = '';
+
+      const base = document.createElement('div');
+      base.className = 'torch-timeline-base';
+      torchTimeline.appendChild(base);
+
+      cues.forEach(cue => {
+        const bar = document.createElement('div');
+        const left = Math.min(100, Math.max(0, (cue.time / duration) * 100));
+        const width = Math.min(100 - left, Math.max(0.8, (cue.duration / duration) * 100));
+
+        bar.className = 'torch-cue-bar';
+        bar.style.left = `${left}%`;
+        bar.style.width = `${width}%`;
+        bar.title = `${cue.time.toFixed(1)}s - ${(cue.time + cue.duration).toFixed(1)}s`;
+        torchTimeline.appendChild(bar);
+      });
+    }
+
+    function renderTorchCues(sourceCues = []) {
+      torchCueRows.innerHTML = '';
+
+      const cues = sourceCues.map(normalizeTorchCue).sort((a, b) => a.time - b.time);
+
+      if (!cues.length) {
+        torchCueRows.innerHTML = '<p class="muted empty-state">ライト区間はまだありません。</p>';
+        renderTorchTimeline([]);
+        return;
+      }
+
+      cues.forEach(cue => {
+        const row = document.createElement('div');
+        row.className = 'torch-cue-row';
+        row.innerHTML = `
+          <input data-field="cue-time" type="number" min="0" step="0.1" value="${cue.time.toFixed(1)}">
+          <input data-field="cue-duration" type="number" min="0.1" step="0.1" value="${cue.duration.toFixed(1)}">
+          <button class="danger" type="button" data-action="remove">削除</button>
+        `;
+
+        row.querySelectorAll('input').forEach(input => {
+          input.addEventListener('input', () => renderTorchTimeline(getTorchCuesFromRows()));
+        });
+
+        row.querySelector('[data-action="remove"]').addEventListener('click', () => {
+          row.remove();
+          renderTorchCues(getTorchCuesFromRows());
+        });
+
+        torchCueRows.appendChild(row);
+      });
+
+      renderTorchTimeline(cues);
+    }
+
     function selectSequence(id) {
       selected = sequences.find(seq => seq.id === id) || null;
       if (!selected) return;
@@ -477,6 +594,7 @@
       sequenceTorchPulseMs.value = selected.torchPulseMs || 180;
       sequenceTorchCooldownMs.value = selected.torchCooldownMs || 140;
       renderFrames(selected.frames || []);
+      renderTorchCues(selected.torchCues || []);
       renderList();
     }
 
@@ -516,7 +634,8 @@
         name: `${source.name} copy`,
         createdAt: undefined,
         updatedAt: undefined,
-        frames: source.frames.map(frame => ({ ...frame }))
+        frames: source.frames.map(frame => ({ ...frame })),
+        torchCues: source.torchCues.map(cue => ({ ...cue }))
       });
 
       selected = saved;
@@ -536,6 +655,31 @@
         ...getFormSequence().frames,
         { time: lastTime + interval, color: '#ffffff' }
       ]);
+    });
+
+    sequenceDuration.addEventListener('input', () => {
+      renderTorchTimeline(getTorchCuesFromRows());
+    });
+
+    torchTimeline.addEventListener('click', event => {
+      const rect = torchTimeline.getBoundingClientRect();
+      const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+      torchCueStart.value = (ratio * getSequenceDurationValue()).toFixed(1);
+    });
+
+    addTorchCueBtn.addEventListener('click', () => {
+      renderTorchCues([
+        ...getTorchCuesFromRows(),
+        normalizeTorchCue({
+          time: torchCueStart.value,
+          duration: torchCueDuration.value
+        })
+      ]);
+    });
+
+    clearTorchCuesBtn.addEventListener('click', () => {
+      if (!confirm('ライト区間をすべて削除しますか？')) return;
+      renderTorchCues([]);
     });
 
     deleteBtn.addEventListener('click', async () => {
