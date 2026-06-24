@@ -134,6 +134,7 @@
     let torchIsOn = false;
     let torchPulseTimer = null;
     let lastTorchPulseAt = 0;
+    let lastTorchFrameIndex = -1;
 
     loginBtn.addEventListener('click', async () => {
       loginMessage.textContent = 'ログイン中...';
@@ -841,14 +842,23 @@
     function syncTorchWithSession(session, color) {
       if (!torchSyncEnabled || !torchSupported || currentFacingMode !== 'environment') return;
 
-      if (!session.isPlaying || getColorBrightness(color) < 24) {
+      const hasBeatInfo = typeof session.beat === 'boolean';
+      const frameIndex = Number(session.frameIndex ?? -1);
+
+      if (!session.isPlaying || (hasBeatInfo && !session.beat) || (!hasBeatInfo && getColorBrightness(color) < 24)) {
         clearTimeout(torchPulseTimer);
         if (torchIsOn) setTorch(false);
         return;
       }
 
+      if (hasBeatInfo && frameIndex === lastTorchFrameIndex) return;
+
       const now = Date.now();
       if (now - lastTorchPulseAt < 140) return;
+
+      if (hasBeatInfo) {
+        lastTorchFrameIndex = frameIndex;
+      }
 
       lastTorchPulseAt = now;
       pulseTorch();
@@ -878,6 +888,7 @@
       if (!torchSyncEnabled) {
         clearTimeout(torchPulseTimer);
         await setTorch(false);
+        lastTorchFrameIndex = -1;
       }
 
       cameraStatus.textContent = torchSyncEnabled ? 'フラッシュ連動ON' : 'フラッシュ連動OFF';
@@ -919,6 +930,7 @@
       torchSyncEnabled = false;
       clearTimeout(torchPulseTimer);
       if (torchIsOn) setTorch(false);
+      lastTorchFrameIndex = -1;
 
       if (cameraStream) {
         cameraStream.getTracks().forEach(track => track.stop());
@@ -1088,6 +1100,7 @@
       torchSyncEnabled = false;
       torchSupported = false;
       torchIsOn = false;
+      lastTorchFrameIndex = -1;
       clearTimeout(torchPulseTimer);
       updateTorchButton();
 

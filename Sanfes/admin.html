@@ -292,6 +292,8 @@
       await setActiveSession({
         isPlaying: false,
         color: '#000000',
+        beat: false,
+        intensity: 0,
         sequenceId: selected?.id || null,
         sequenceName: selected?.name || 'stop'
       });
@@ -337,6 +339,10 @@
         await setActiveSession({
           isPlaying: true,
           color: frame.color,
+          beat: Boolean(frame.beat),
+          intensity: Number(frame.intensity || 0),
+          volume: Number(frame.volume || 0),
+          lift: Number(frame.lift || 0),
           sequenceId: selected.id,
           sequenceName: selected.name,
           frameIndex: currentIndex,
@@ -362,6 +368,8 @@
       await setActiveSession({
         isPlaying: true,
         color,
+        beat: true,
+        intensity: 1,
         sequenceName: 'manual'
       });
 
@@ -374,6 +382,8 @@
       await setActiveSession({
         isPlaying: true,
         color: '#000000',
+        beat: false,
+        intensity: 0,
         sequenceName: 'blackout'
       });
 
