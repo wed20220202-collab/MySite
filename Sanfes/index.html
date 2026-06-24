@@ -830,13 +830,13 @@
       return (r * 0.299) + (g * 0.587) + (b * 0.114);
     }
 
-    async function pulseTorch() {
+    async function pulseTorch(duration = 180) {
       clearTimeout(torchPulseTimer);
       await setTorch(true);
 
       torchPulseTimer = setTimeout(() => {
         setTorch(false);
-      }, 90);
+      }, duration);
     }
 
     function syncTorchWithSession(session, color) {
@@ -889,6 +889,10 @@
         clearTimeout(torchPulseTimer);
         await setTorch(false);
         lastTorchFrameIndex = -1;
+      } else {
+        lastTorchFrameIndex = -1;
+        lastTorchPulseAt = 0;
+        await pulseTorch(220);
       }
 
       cameraStatus.textContent = torchSyncEnabled ? 'フラッシュ連動ON' : 'フラッシュ連動OFF';
