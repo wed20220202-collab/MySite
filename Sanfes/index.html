@@ -830,6 +830,12 @@
       return (r * 0.299) + (g * 0.587) + (b * 0.114);
     }
 
+    function clampNumber(value, min, max, fallback) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return fallback;
+      return Math.min(max, Math.max(min, number));
+    }
+
     async function pulseTorch(duration = 180) {
       clearTimeout(torchPulseTimer);
       await setTorch(true);
@@ -859,14 +865,15 @@
       if (hasBeatInfo && frameIndex === lastTorchFrameIndex) return;
 
       const now = Date.now();
-      if (now - lastTorchPulseAt < 140) return;
+      const cooldownMs = clampNumber(session.torchCooldownMs, 40, 1000, 140);
+      if (now - lastTorchPulseAt < cooldownMs) return;
 
       if (hasBeatInfo) {
         lastTorchFrameIndex = frameIndex;
       }
 
       lastTorchPulseAt = now;
-      pulseTorch();
+      pulseTorch(clampNumber(session.torchPulseMs, 40, 800, 180));
     }
 
     async function toggleTorchSync() {

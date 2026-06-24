@@ -294,6 +294,8 @@
         color: '#000000',
         beat: false,
         intensity: 0,
+        torchPulseMs: selected?.torchPulseMs || 180,
+        torchCooldownMs: selected?.torchCooldownMs || 140,
         sequenceId: selected?.id || null,
         sequenceName: selected?.name || 'stop'
       });
@@ -343,6 +345,8 @@
           intensity: Number(frame.intensity || 0),
           volume: Number(frame.volume || 0),
           lift: Number(frame.lift || 0),
+          torchPulseMs: Number(selected.torchPulseMs || 180),
+          torchCooldownMs: Number(selected.torchCooldownMs || 140),
           sequenceId: selected.id,
           sequenceName: selected.name,
           frameIndex: currentIndex,
@@ -370,6 +374,8 @@
         color,
         beat: true,
         intensity: 1,
+        torchPulseMs: 180,
+        torchCooldownMs: 140,
         sequenceName: 'manual'
       });
 
@@ -384,6 +390,8 @@
         color: '#000000',
         beat: false,
         intensity: 0,
+        torchPulseMs: 180,
+        torchCooldownMs: 140,
         sequenceName: 'blackout'
       });
 
