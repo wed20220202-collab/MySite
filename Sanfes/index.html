@@ -132,6 +132,9 @@
     let torchSupported = false;
     let torchSyncEnabled = false;
     let torchIsOn = false;
+    let desiredTorchState = false;
+    let torchApplyPromise = Promise.resolve();
+    let torchApplyPending = false;
     let torchPulseTimer = null;
     let lastTorchPulseAt = 0;
     let lastTorchFrameIndex = -1;
@@ -811,7 +814,7 @@
       updateTorchButton();
     }
 
-    async function setTorch(on) {
+    async function applyTorchState(on) {
       const track = getVideoTrack();
       if (!track || !torchSupported) {
         lastTorchReason = !track ? 'no video track' : 'torch unsupported';
@@ -826,14 +829,45 @@
         lastTorchReason = on ? 'torch on' : 'torch off';
         updateTorchDebugPanel();
       } catch (error) {
-        console.warn('フラッシュライト制御に失敗しました', error);
+        console.warn('torch control failed', error);
         lastTorchError = `${error.name || 'Error'}: ${error.message || ''}`;
         lastTorchReason = 'torch error';
         torchSupported = false;
         torchSyncEnabled = false;
         torchIsOn = false;
+        desiredTorchState = false;
         updateTorchButton();
+        updateTorchDebugPanel();
       }
+    }
+
+    function setTorch(on, options = {}) {
+      const nextTorchState = Boolean(on);
+
+      if (!options.force && desiredTorchState === nextTorchState && (torchIsOn === nextTorchState || torchApplyPending)) {
+        lastTorchReason = nextTorchState
+          ? (torchIsOn ? 'already on' : 'on pending')
+          : (torchIsOn ? 'off pending' : 'already off');
+        updateTorchDebugPanel();
+        return torchApplyPromise;
+      }
+
+      desiredTorchState = nextTorchState;
+      torchApplyPending = true;
+      updateTorchDebugPanel();
+
+      torchApplyPromise = torchApplyPromise
+        .catch(() => {})
+        .then(async () => {
+          if (!options.force && torchIsOn === desiredTorchState) return;
+          await applyTorchState(desiredTorchState);
+        })
+        .finally(() => {
+          torchApplyPending = false;
+          updateTorchDebugPanel();
+        });
+
+      return torchApplyPromise;
     }
 
     function getColorBrightness(color) {
@@ -975,6 +1009,8 @@
         `torchSupported: ${torchSupported}`,
         `torchSyncEnabled: ${torchSyncEnabled}`,
         `torchIsOn: ${torchIsOn}`,
+        `desiredTorchState: ${desiredTorchState}`,
+        `torchApplyPending: ${torchApplyPending}`,
         `facing: ${currentFacingMode}`,
         `hasTrack: ${Boolean(getVideoTrack())}`,
         `isPlaying: ${Boolean(session.isPlaying)}`,
@@ -1072,6 +1108,7 @@
 
       torchSupported = false;
       torchIsOn = false;
+      desiredTorchState = false;
       updateTorchButton();
       cameraPreview.srcObject = null;
       miniCamera.classList.add('hidden');
@@ -1233,6 +1270,7 @@
       torchSyncEnabled = false;
       torchSupported = false;
       torchIsOn = false;
+      desiredTorchState = false;
       lastTorchFrameIndex = -1;
       clearTimeout(torchPulseTimer);
       updateTorchButton();
