@@ -8,20 +8,40 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 
-<body>
+<body class="has-page-sidebar">
+  <aside class="page-sidebar" aria-label="ページ移動">
+    <div class="page-sidebar-brand">
+      <span>SANFES</span>
+      <small>Navigation</small>
+    </div>
+    <nav class="page-sidebar-nav">
+      <a class="page-sidebar-link" href="index.html">
+        <span>Camera</span>
+        <small>参加者画面</small>
+      </a>
+      <a class="page-sidebar-link" href="gallery.html">
+        <span>Gallery</span>
+        <small>写真を見る</small>
+      </a>
+      <a class="page-sidebar-link is-current" href="movie.html" aria-current="page">
+        <span>Movie</span>
+        <small>色編集</small>
+      </a>
+      <a class="page-sidebar-link" href="admin.html">
+        <span>Admin</span>
+        <small>管理画面</small>
+      </a>
+    </nav>
+  </aside>
+
   <main class="wrap movie-studio">
     <header class="app-topbar">
       <div>
         <p class="page-kicker">カラー制御スタジオ</p>
         <h1>MOVIE COLOR</h1>
-        <p class="version-badge page-version">v0.9.1-studio-ui</p>
+        <p class="version-badge page-version">v0.9.2-sidebar-nav</p>
         <p class="muted">動画からの色抽出、手動カラー作成、保存済みシーケンスの編集を1画面で管理します。</p>
       </div>
-      <nav class="app-nav">
-        <a class="btn" href="admin.html">管理画面</a>
-        <a class="btn" href="gallery.html">ギャラリー</a>
-        <a class="btn" href="index.html">参加者画面</a>
-      </nav>
     </header>
 
     <section class="studio-grid">

@@ -9,7 +9,32 @@
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 
-<body>
+<body class="has-page-sidebar">
+  <aside class="page-sidebar" aria-label="ページ移動">
+    <div class="page-sidebar-brand">
+      <span>SANFES</span>
+      <small>Navigation</small>
+    </div>
+    <nav class="page-sidebar-nav">
+      <a class="page-sidebar-link is-current" href="index.html" aria-current="page">
+        <span>Camera</span>
+        <small>参加者画面</small>
+      </a>
+      <a class="page-sidebar-link" href="gallery.html">
+        <span>Gallery</span>
+        <small>写真を見る</small>
+      </a>
+      <a class="page-sidebar-link" href="movie.html">
+        <span>Movie</span>
+        <small>色編集</small>
+      </a>
+      <a class="page-sidebar-link" href="admin.html">
+        <span>Admin</span>
+        <small>管理画面</small>
+      </a>
+    </nav>
+  </aside>
+
   <div id="colorStage"></div>
 
   <div id="loginPanel" class="login-panel">
@@ -21,7 +46,7 @@
 
   <div id="mainPanel" class="participant-ui hidden">
     <h1>FESTIVAL COLOR</h1>
-    <p class="version-badge">v0.9.1-studio-ui</p>
+    <p class="version-badge">v0.9.2-sidebar-nav</p>
     <p id="studentIdText">未ログイン</p>
     <p>～この画面で待機してください～</p>
     <p id="uploadStatus">アップロード待機中</p>
