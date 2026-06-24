@@ -845,9 +845,14 @@
       const hasBeatInfo = typeof session.beat === 'boolean';
       const frameIndex = Number(session.frameIndex ?? -1);
 
-      if (!session.isPlaying || (hasBeatInfo && !session.beat) || (!hasBeatInfo && getColorBrightness(color) < 24)) {
+      if (!session.isPlaying) {
         clearTimeout(torchPulseTimer);
         if (torchIsOn) setTorch(false);
+        lastTorchFrameIndex = -1;
+        return;
+      }
+
+      if ((hasBeatInfo && !session.beat) || (!hasBeatInfo && getColorBrightness(color) < 24)) {
         return;
       }
 
