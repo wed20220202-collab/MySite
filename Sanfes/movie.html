@@ -173,6 +173,7 @@
             <div class="frame-editor-head">
               <span>時間</span>
               <span>色</span>
+              <span>Beat</span>
               <span>操作</span>
             </div>
             <div id="frameRows" class="frame-rows"></div>
@@ -325,14 +326,59 @@
         .join('');
     }
 
+    function hexToRgb(color) {
+      const match = String(color || '').match(/^#?([0-9a-f]{6})$/i);
+      if (!match) return { r: 0, g: 0, b: 0 };
+
+      const hex = match[1];
+      return {
+        r: parseInt(hex.slice(0, 2), 16),
+        g: parseInt(hex.slice(2, 4), 16),
+        b: parseInt(hex.slice(4, 6), 16)
+      };
+    }
+
+    function getBrightness(color) {
+      const { r, g, b } = hexToRgb(color);
+      return (r * 0.299) + (g * 0.587) + (b * 0.114);
+    }
+
+    function getColorDistance(a, b) {
+      const left = hexToRgb(a);
+      const right = hexToRgb(b);
+      return Math.sqrt(
+        ((left.r - right.r) ** 2) +
+        ((left.g - right.g) ** 2) +
+        ((left.b - right.b) ** 2)
+      );
+    }
+
+    function addAutoBeatData(sourceFrames) {
+      return sourceFrames.map((frame, index, allFrames) => {
+        const previous = allFrames[index - 1];
+        const brightness = getBrightness(frame.color);
+        const colorLift = previous ? getColorDistance(previous.color, frame.color) : brightness;
+        const intensity = Math.min(1, Math.max(brightness / 255, colorLift / 140));
+
+        return {
+          ...frame,
+          beat: index === 0 || colorLift >= 34 || brightness >= 48,
+          intensity,
+          volume: intensity,
+          lift: colorLift
+        };
+      });
+    }
+
     function renderColors() {
       colors.innerHTML = '';
 
       frames.forEach((frame, i) => {
         const div = document.createElement('div');
         div.className = 'color-chip timeline-chip';
+        div.classList.toggle('is-beat', Boolean(frame.beat));
         div.style.background = frame.color;
-        div.title = `${frame.time.toFixed(1)}s: ${frame.color}`;
+        div.title = `${frame.time.toFixed(1)}s: ${frame.color}${frame.beat ? ' / BEAT' : ''}`;
         div.textContent = i + 1;
         colors.appendChild(div);
       });
@@ -363,6 +409,7 @@
         status.textContent = `抽出中... ${frames.length}フレーム`;
       }
 
+      frames = addAutoBeatData(frames);
       renderColors();
       status.textContent = `抽出完了: ${frames.length}フレーム`;
     });
@@ -405,7 +452,7 @@
       const color = editorColorInput.value;
       const time = frames.length * interval;
 
-      frames.push({ time, color });
+      frames.push({ time, color, beat: true, intensity: 1, volume: 1, lift: 255 });
       intervalInput.value = String(interval);
 
       if (nameInput.value === 'festival-sequence') {
@@ -425,7 +472,11 @@
     function normalizeFrame(frame, index) {
       return {
         time: Number(frame?.time ?? index * Number(sequenceInterval.value || 0.2)),
-        color: frame?.color || '#000000'
+        color: frame?.color || '#000000',
+        beat: Boolean(frame?.beat),
+        intensity: Number(frame?.intensity || 0),
+        volume: Number(frame?.volume || 0),
+        lift: Number(frame?.lift || 0)
       };
     }
 
@@ -433,7 +484,11 @@
       const editedFrames = Array.from(frameRows.querySelectorAll('.frame-row'))
         .map(row => ({
           time: Number(row.querySelector('[data-field="time"]').value || 0),
-          color: row.querySelector('[data-field="color"]').value || '#000000'
+          color: row.querySelector('[data-field="color"]').value || '#000000',
+          beat: row.querySelector('[data-field="beat"]').checked,
+          intensity: row.querySelector('[data-field="beat"]').checked ? 1 : 0,
+          volume: row.querySelector('[data-field="beat"]').checked ? 1 : 0,
+          lift: row.querySelector('[data-field="beat"]').checked ? 255 : 0
         }))
         .sort((a, b) => a.time - b.time);
 
@@ -482,6 +537,10 @@
         row.innerHTML = `
           <input data-field="time" type="number" min="0" step="0.1" value="${Number(frame.time).toFixed(1)}">
           <input data-field="color" type="color" value="${escapeHtml(frame.color)}">
+          <label class="inline-check frame-beat-check">
+            <input data-field="beat" type="checkbox" ${frame.beat ? 'checked' : ''}>
+            <span>Beat</span>
+          </label>
           <button class="danger" type="button" data-action="remove">削除</button>
         `;
 
@@ -653,7 +712,7 @@
 
       renderFrames([
         ...getFormSequence().frames,
-        { time: lastTime + interval, color: '#ffffff' }
+        { time: lastTime + interval, color: '#ffffff', beat: true, intensity: 1, volume: 1, lift: 255 }
       ]);
     });
 

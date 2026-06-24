@@ -299,6 +299,10 @@
       return torchCues.some(cue => elapsedSec >= cue.time && elapsedSec < cue.time + cue.duration);
     }
 
+    function hasExplicitBeatData(sequence) {
+      return (sequence?.frames || []).some(frame => typeof frame?.beat === 'boolean');
+    }
+
     async function stop() {
       clearInterval(timer);
       timer = null;
@@ -334,6 +338,7 @@
       const videoDuration = selected.duration || selected.frames.at(-1).time || 0;
       const totalFrames = selected.frames.length;
       const torchCues = normalizeTorchCues(selected);
+      const explicitBeatData = hasExplicitBeatData(selected);
 
       const tick = async () => {
         const elapsedSec = (performance.now() - startTime) / 1000;
@@ -358,7 +363,7 @@
         await setActiveSession({
           isPlaying: true,
           color: frame.color,
-          beat: Boolean(frame.beat),
+          beat: explicitBeatData ? Boolean(frame.beat) : true,
           intensity: Number(frame.intensity || 0),
           volume: Number(frame.volume || 0),
           lift: Number(frame.lift || 0),

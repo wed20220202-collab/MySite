@@ -1150,6 +1150,11 @@ button.danger,
   border-radius: 10px;
 }
 
+.timeline-chip.is-beat {
+  outline: 3px solid #facc15;
+  box-shadow: 0 0 0 4px rgba(250, 204, 21, 0.24);
+}
+
 .color-editor-panel {
   margin-top: 18px;
   padding-top: 18px;
@@ -1242,7 +1247,7 @@ button.danger,
 .frame-editor-head,
 .frame-row {
   display: grid;
-  grid-template-columns: minmax(90px, 0.8fr) minmax(90px, 0.8fr) auto;
+  grid-template-columns: minmax(90px, 0.8fr) minmax(90px, 0.8fr) minmax(84px, 0.6fr) auto;
   gap: 10px;
   align-items: center;
   padding: 10px 12px;
@@ -1274,6 +1279,15 @@ button.danger,
 .frame-row input[type="number"],
 .frame-row input[type="color"] {
   width: 100%;
+}
+
+.frame-beat-check {
+  justify-content: center;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  background: #f8fbff;
 }
 
 .torch-timeline-editor {
