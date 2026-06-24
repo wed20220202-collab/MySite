@@ -14,7 +14,7 @@
       <div>
         <p class="page-kicker">カラー制御スタジオ</p>
         <h1>MOVIE COLOR</h1>
-        <p class="version-badge page-version">v0.9.0-unified-studio</p>
+        <p class="version-badge page-version">v0.9.1-studio-ui</p>
         <p class="muted">動画からの色抽出、手動カラー作成、保存済みシーケンスの編集を1画面で管理します。</p>
       </div>
       <nav class="app-nav">
@@ -29,7 +29,7 @@
         <div class="panel-heading">
           <div>
             <h2>作成</h2>
-            <p class="muted">動画から色を抽出、またはColor Editorで手動作成します。</p>
+            <p class="muted">動画から色を抽出、または手動カラーで作成します。</p>
           </div>
         </div>
 
@@ -47,31 +47,36 @@
             <span>シーケンス名</span>
             <input id="name" type="text" value="festival-sequence" />
           </label>
-
-          <label>
-            <span>間隔 秒</span>
-            <input id="interval" type="number" value="0.5" min="0.1" step="0.1" />
-          </label>
-          <label>
-            <span>ライト点灯 ms</span>
-            <input id="torchPulseMs" type="number" value="180" min="40" max="800" step="10" />
-          </label>
-          <label>
-            <span>ライト間隔 ms</span>
-            <input id="torchCooldownMs" type="number" value="140" min="40" max="1000" step="10" />
-          </label>
         </div>
 
-        <div class="studio-actions">
-          <button id="extract" class="primary" type="button">抽出</button>
-          <button id="save" type="button">保存</button>
-          <button id="clear" class="danger" type="button">全削除</button>
+        <input id="interval" type="hidden" value="0.5" />
+        <input id="torchPulseMs" type="hidden" value="180" />
+        <input id="torchCooldownMs" type="hidden" value="140" />
+
+        <div class="generation-panel">
+          <div class="panel-heading compact-heading">
+            <div>
+              <h2>動画から生成</h2>
+              <p class="muted">動画を選んだあと、使いたい生成方法を選びます。</p>
+            </div>
+          </div>
+
+          <div class="generation-actions">
+            <button id="analyzeBeat" class="primary generation-button" type="button">
+              <span>音に合わせて生成</span>
+              <small>ビート感と音量から色を作成</small>
+            </button>
+            <button id="extract" class="generation-button" type="button">
+              <span>映像の色から生成</span>
+              <small>動画画面の平均色を抽出</small>
+            </button>
+          </div>
         </div>
 
         <div class="color-editor-panel">
           <div class="panel-heading compact-heading">
             <div>
-              <h2>Color Editor</h2>
+              <h2>手動カラー</h2>
               <p class="muted">動画なしで、指定秒数ごとの色を追加します。</p>
             </div>
           </div>
@@ -98,37 +103,32 @@
         <div id="beat-analyzer" class="beat-editor-panel">
           <div class="panel-heading compact-heading">
             <div>
-              <h2>Beat Analyzer</h2>
-              <p class="muted">Generate beat-aware color sequences from MP4 audio.</p>
+              <h2>音解析の設定</h2>
+              <p class="muted">音に合わせて生成するときの感度と配色だけ選びます。ライトの細かい調整は保存後の編集で行えます。</p>
             </div>
           </div>
 
           <div class="field-grid two-col">
             <label>
-              <span>Sensitivity</span>
+              <span>ビート感度</span>
               <input id="beatSensitivity" type="number" value="0.85" min="0.35" max="2.5" step="0.05" />
             </label>
             <label>
-              <span>Theme</span>
+              <span>配色テーマ</span>
               <select id="beatTheme">
-                <option value="festival">Festival</option>
-                <option value="rainbow">Rainbow</option>
-                <option value="red">Red</option>
-                <option value="blue">Blue</option>
-                <option value="school">School</option>
-                <option value="whiteFlash">White Flash</option>
+                <option value="festival">フェス</option>
+                <option value="rainbow">レインボー</option>
+                <option value="red">赤系</option>
+                <option value="blue">青系</option>
+                <option value="school">学校カラー</option>
+                <option value="whiteFlash">白フラッシュ</option>
               </select>
             </label>
           </div>
 
-          <div class="studio-actions compact">
-            <button id="analyzeBeat" class="primary" type="button">Generate Beat</button>
-            <button id="previewBeat" type="button">Preview Beat</button>
-          </div>
-
-          <p id="beatSummary" class="status">Beat not generated</p>
+          <p id="beatSummary" class="status">まだ生成されていません</p>
         </div>
-        <p id="status" class="status">動画を選択、またはColor Editorで色を追加してください。</p>
+        <p id="status" class="status">動画を選択、または手動カラーで色を追加してください。</p>
       </article>
 
       <article class="panel preview-panel">
@@ -142,7 +142,12 @@
         <video id="video" controls muted playsinline></video>
         <canvas id="canvas" style="display:none;"></canvas>
         <div id="beatPreviewStage" class="beat-preview-stage"></div>
-        <p id="beatPreviewText" class="status">Beat preview waiting</p>
+        <p id="beatPreviewText" class="status">プレビュー待ち</p>
+        <div class="preview-actions studio-actions compact">
+          <button id="previewBeat" type="button">プレビュー再生</button>
+          <button id="save" class="primary" type="button">このシーケンスを保存</button>
+          <button id="resetDraft" type="button">作成中をリセット</button>
+        </div>
         <div id="colors" class="colors color-timeline"></div>
       </article>
     </section>
@@ -210,7 +215,7 @@
             <div class="frame-editor-head">
               <span>時間</span>
               <span>色</span>
-              <span>Beat</span>
+              <span>点灯</span>
               <span>操作</span>
             </div>
             <div id="frameRows" class="frame-rows"></div>
@@ -266,6 +271,7 @@
     const extractBtn = document.getElementById('extract');
     const saveBtn = document.getElementById('save');
     const clearBtn = document.getElementById('clear');
+    const resetDraftBtn = document.getElementById('resetDraft');
     const editorColorInput = document.getElementById('editorColor');
     const editorStepInput = document.getElementById('editorStep');
     const addEditorColorBtn = document.getElementById('addEditorColor');
@@ -304,6 +310,11 @@
     const clearTorchCuesBtn = document.getElementById('clearTorchCues');
     const torchCueRows = document.getElementById('torchCueRows');
 
+    const COLOR_EXTRACT_INTERVAL_SECONDS = 0.5;
+    const BEAT_ANALYSIS_INTERVAL_SECONDS = 0.2;
+    const DEFAULT_TORCH_PULSE_MS = 180;
+    const DEFAULT_TORCH_COOLDOWN_MS = 140;
+
     let frames = [];
     let generatedDuration = 0;
     let previewTimer = null;
@@ -332,8 +343,8 @@
       clearInterval(previewTimer);
       colors.innerHTML = '';
       beatPreviewStage.style.background = '#0f172a';
-      beatPreviewText.textContent = 'Beat preview waiting';
-      beatSummary.textContent = 'Beat not generated';
+      beatPreviewText.textContent = 'プレビュー待ち';
+      beatSummary.textContent = 'まだ生成されていません';
     });
 
     function waitVideoSeek() {
@@ -495,13 +506,13 @@
     async function decodeAudioFromVideoFile(file) {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       if (!AudioContextClass) {
-        throw new Error('This browser does not support audio analysis.');
+        throw new Error('このブラウザは音解析に対応していません。');
       }
 
       const audioContext = new AudioContextClass();
       const arrayBuffer = await file.arrayBuffer();
 
-      status.textContent = 'Decoding audio...';
+      status.textContent = '音声を読み取り中...';
 
       try {
         return await audioContext.decodeAudioData(arrayBuffer);
@@ -606,8 +617,8 @@
     function updateBeatSummary() {
       const beatCount = frames.filter(frame => frame.beat).length;
       beatSummary.textContent = frames.length
-        ? `${frames.length} frames / ${beatCount} beats`
-        : 'Beat not generated';
+        ? `${frames.length}フレーム / 点灯候補 ${beatCount}個`
+        : 'まだ生成されていません';
     }
 
     function getDraftDuration() {
@@ -615,6 +626,18 @@
       if (Number.isFinite(video.duration)) return video.duration;
       return (frames.at(-1)?.time || 0) + (Number(intervalInput.value) || 0.5);
     }
+
+    function resetDraft() {
+      clearInterval(previewTimer);
+      previewTimer = null;
+      frames = [];
+      generatedDuration = 0;
+      colors.innerHTML = '';
+      beatPreviewStage.style.background = '#0f172a';
+      beatPreviewText.textContent = 'プレビュー待ち';
+      updateBeatSummary();
+    }
+
     function renderColors() {
       colors.innerHTML = '';
 
@@ -623,7 +646,7 @@
         div.className = 'color-chip timeline-chip';
         div.classList.toggle('is-beat', Boolean(frame.beat));
         div.style.background = frame.color;
-        div.title = `${frame.time.toFixed(1)}s: ${frame.color}${frame.beat ? ' / BEAT' : ''}`;
+        div.title = `${frame.time.toFixed(1)}秒: ${frame.color}${frame.beat ? ' / 点灯' : ''}`;
         div.textContent = i + 1;
         colors.appendChild(div);
       });
@@ -639,7 +662,8 @@
 
       frames = [];
       colors.innerHTML = '';
-      const interval = Number(intervalInput.value) || 0.5;
+      intervalInput.value = String(COLOR_EXTRACT_INTERVAL_SECONDS);
+      const interval = COLOR_EXTRACT_INTERVAL_SECONDS;
 
       await new Promise(resolve => {
         if (video.readyState >= 1) resolve();
@@ -658,7 +682,7 @@
 
       frames = addAutoBeatData(frames);
       renderColors();
-      status.textContent = `抽出完了: ${frames.length}フレーム`;
+      status.textContent = `映像色から生成しました: ${frames.length}フレーム`;
     });
 
     saveBtn.addEventListener('click', async () => {
@@ -670,8 +694,8 @@
       const sequence = {
         name: nameInput.value || 'festival-sequence',
         interval: Number(intervalInput.value) || 0.5,
-        torchPulseMs: Number(torchPulseMsInput.value) || 180,
-        torchCooldownMs: Number(torchCooldownMsInput.value) || 140,
+        torchPulseMs: Number(torchPulseMsInput.value) || DEFAULT_TORCH_PULSE_MS,
+        torchCooldownMs: Number(torchCooldownMsInput.value) || DEFAULT_TORCH_COOLDOWN_MS,
         duration: getDraftDuration(),
         frames
       };
@@ -681,21 +705,17 @@
       await loadSequences();
     });
 
-    clearBtn.addEventListener('click', async () => {
-      if (!confirm('保存済みシーケンスをすべて削除しますか？')) return;
+    if (clearBtn) {
+      clearBtn.addEventListener('click', async () => {
+        if (!confirm('保存済みシーケンスをすべて削除しますか？')) return;
 
-      await clearSequences();
-      clearInterval(previewTimer);
-      frames = [];
-      generatedDuration = 0;
-      colors.innerHTML = '';
-      beatPreviewStage.style.background = '#0f172a';
-      beatPreviewText.textContent = 'Beat preview waiting';
-      updateBeatSummary();
-      selected = null;
-      status.textContent = 'すべて削除しました';
-      await loadSequences();
-    });
+        await clearSequences();
+        resetDraft();
+        selected = null;
+        status.textContent = 'すべて削除しました';
+        await loadSequences();
+      });
+    }
 
     addEditorColorBtn.addEventListener('click', () => {
       const interval = Number(editorStepInput.value) || 0.2;
@@ -710,7 +730,7 @@
       }
 
       renderColors();
-      status.textContent = `Color Editor: ${frames.length}フレーム / ${interval.toFixed(1)}秒ステップ`;
+      status.textContent = `手動カラー: ${frames.length}フレーム / ${interval.toFixed(1)}秒ステップ`;
     });
 
 
@@ -719,7 +739,7 @@
       const file = fileInput.files[0];
 
       if (!file) {
-        alert('Select an MP4/video file first.');
+        alert('先に動画を選択してください。');
         return;
       }
 
@@ -732,11 +752,12 @@
           else video.onloadedmetadata = resolve;
         });
 
-        const interval = Number(intervalInput.value) || 0.2;
+        intervalInput.value = String(BEAT_ANALYSIS_INTERVAL_SECONDS);
+        const interval = BEAT_ANALYSIS_INTERVAL_SECONDS;
         const sensitivity = Number(beatSensitivityInput.value) || 0.85;
         const theme = beatThemeInput.value;
 
-        status.textContent = 'Analyzing beat...';
+        status.textContent = '音を解析中...';
         const audioBuffer = await decodeAudioFromVideoFile(file);
         const generated = generateBeatSequence(audioBuffer, interval, sensitivity, theme);
 
@@ -749,12 +770,12 @@
 
         renderColors();
         beatPreviewStage.style.background = frames[0]?.color || '#0f172a';
-        beatPreviewText.textContent = `${frames.length} frames / ${generatedDuration.toFixed(1)}s`;
-        status.textContent = `Beat generated: ${frames.length} frames / ${generatedDuration.toFixed(1)}s`;
+        beatPreviewText.textContent = `${frames.length}フレーム / ${generatedDuration.toFixed(1)}秒`;
+        status.textContent = `音に合わせて生成しました: ${frames.length}フレーム / ${generatedDuration.toFixed(1)}秒`;
       } catch (error) {
         console.error(error);
-        status.textContent = `Beat analysis failed: ${error.message}`;
-        alert(`Beat analysis failed: ${error.message}`);
+        status.textContent = `音解析に失敗しました: ${error.message}`;
+        alert(`音解析に失敗しました: ${error.message}`);
       } finally {
         analyzeBeatBtn.disabled = false;
       }
@@ -762,7 +783,7 @@
 
     previewBeatBtn.addEventListener('click', () => {
       if (!frames.length) {
-        alert('Generate beat or colors first.');
+        alert('先に色を生成してください。');
         return;
       }
 
@@ -774,18 +795,18 @@
       previewTimer = setInterval(() => {
         const frame = frames[index];
         beatPreviewStage.style.background = frame.color;
-        beatPreviewText.textContent = `${index + 1}/${frames.length} ${frame.time}s ${frame.color} ${frame.beat ? 'BEAT' : ''}`;
+        beatPreviewText.textContent = `${index + 1}/${frames.length} ${frame.time.toFixed(1)}秒 ${frame.color} ${frame.beat ? '点灯' : ''}`;
         index = (index + 1) % frames.length;
       }, interval * 1000);
     });
+
+    resetDraftBtn.addEventListener('click', () => {
+      resetDraft();
+      status.textContent = '作成中のシーケンスをリセットしました';
+    });
+
     clearEditorBtn.addEventListener('click', () => {
-      clearInterval(previewTimer);
-      frames = [];
-      generatedDuration = 0;
-      colors.innerHTML = '';
-      beatPreviewStage.style.background = '#0f172a';
-      beatPreviewText.textContent = 'Beat preview waiting';
-      updateBeatSummary();
+      resetDraft();
       status.textContent = '作成中の色をクリアしました';
     });
 
@@ -859,7 +880,7 @@
           <input data-field="color" type="color" value="${escapeHtml(frame.color)}">
           <label class="inline-check frame-beat-check">
             <input data-field="beat" type="checkbox" ${frame.beat ? 'checked' : ''}>
-            <span>Beat</span>
+            <span>点灯</span>
           </label>
           <button class="danger" type="button" data-action="remove">削除</button>
         `;
@@ -920,7 +941,7 @@
         bar.className = 'torch-cue-bar';
         bar.style.left = `${left}%`;
         bar.style.width = `${width}%`;
-        bar.title = `${cue.time.toFixed(1)}s - ${(cue.time + cue.duration).toFixed(1)}s`;
+        bar.title = `${cue.time.toFixed(1)}秒 - ${(cue.time + cue.duration).toFixed(1)}秒`;
         torchTimeline.appendChild(bar);
       });
     }

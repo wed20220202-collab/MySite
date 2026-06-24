@@ -1161,6 +1161,42 @@ button.danger,
   border-top: 1px solid var(--stroke);
 }
 
+.generation-panel {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--stroke);
+}
+
+.generation-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.generation-button {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  min-height: 76px;
+  gap: 4px;
+  text-align: left;
+}
+
+.generation-button span {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.generation-button small {
+  color: var(--muted-text);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+button.primary.generation-button small {
+  color: rgba(255, 255, 255, 0.82);
+}
+
 .beat-editor-panel {
   margin-top: 18px;
   padding-top: 18px;
@@ -1215,6 +1251,14 @@ button.danger,
 
 .studio-actions.compact {
   margin-top: 12px;
+}
+
+.preview-actions {
+  align-items: stretch;
+}
+
+.preview-actions #save {
+  flex: 1 1 220px;
 }
 
 .movie-admin {
@@ -1397,6 +1441,7 @@ button.danger,
   }
 
   .field-grid.two-col,
+  .generation-actions,
   .frame-editor-head,
   .frame-row,
   .torch-cue-row {
