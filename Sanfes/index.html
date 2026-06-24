@@ -21,7 +21,7 @@
 
   <div id="mainPanel" class="participant-ui hidden">
     <h1>FESTIVAL COLOR</h1>
-    <p class="version-badge">v0.8.3-torch-sync</p>
+    <p class="version-badge">v0.8.4-drive-folder-fix</p>
     <p id="studentIdText">未ログイン</p>
     <p>～この画面で待機してください～</p>
     <p id="uploadStatus">アップロード待機中</p>
@@ -442,33 +442,32 @@
       return match ? match[1].toUpperCase() : 'UNKNOWN';
     }
 
-    async function ensureSchoolDriveFolder(token) {
-      const folderName = getSchoolFolderName();
-      const cacheKey = `festival_drive_school_folder_${folderName}`;
-      const cachedFolderId = schoolFolderId || localStorage.getItem(cacheKey);
+    function getSchoolFolderCacheKey(folderName) {
+      return `festival_drive_school_folder_${GOOGLE_DRIVE_FOLDER_ID}_${folderName}`;
+    }
 
-      if (cachedFolderId) {
-        schoolFolderId = cachedFolderId;
-        return cachedFolderId;
-      }
-
-      cameraStatus.textContent = `学校フォルダ確認中...${folderName}`;
-
+    function getSchoolFolderQuery(folderName) {
       const escapedName = escapeDriveQueryValue(folderName);
       const escapedParent = escapeDriveQueryValue(GOOGLE_DRIVE_FOLDER_ID);
-      const query = [
+
+      return [
         "mimeType='application/vnd.google-apps.folder'",
         `name='${escapedName}'`,
         `'${escapedParent}' in parents`,
         'trashed=false'
       ].join(' and ');
+    }
 
+    async function fetchSchoolDriveFolders(token, folderName) {
+      const query = getSchoolFolderQuery(folderName);
       const searchUrl = [
         'https://www.googleapis.com/drive/v3/files',
         '?supportsAllDrives=true',
         '&includeItemsFromAllDrives=true',
         '&spaces=drive',
-        '&fields=files(id,name)',
+        '&pageSize=20',
+        '&orderBy=createdTime',
+        '&fields=files(id,name,createdTime,modifiedTime)',
         `&q=${encodeURIComponent(query)}`
       ].join('');
 
@@ -480,25 +479,60 @@
 
       if (searchRes.status === 401) {
         const newToken = await refreshGoogleAccessToken();
-        return ensureSchoolDriveFolder(newToken);
+        return fetchSchoolDriveFolders(newToken, folderName);
       }
 
       if (!searchRes.ok) {
         throw new Error(await searchRes.text());
       }
 
-      const searchResult = await searchRes.json();
-      const existingFolder = searchResult.files?.[0];
+      const searchData = await searchRes.json();
+      return (searchData.files || [])
+        .filter(folder => folder?.id)
+        .sort((a, b) => String(a.createdTime || '').localeCompare(String(b.createdTime || '')));
+    }
 
-      if (existingFolder?.id) {
-        schoolFolderId = existingFolder.id;
-        localStorage.setItem(cacheKey, existingFolder.id);
-        return existingFolder.id;
+    async function trashDuplicateSchoolFolder(token, folderId, canonicalFolderId) {
+      if (!folderId || folderId === canonicalFolderId) return;
+
+      try {
+        await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderId)}?supportsAllDrives=true`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json; charset=UTF-8'
+          },
+          body: JSON.stringify({ trashed: true })
+        });
+      } catch (error) {
+        console.warn('duplicate folder cleanup failed', error);
+      }
+    }
+
+    async function ensureSchoolDriveFolder(token) {
+      const folderName = getSchoolFolderName();
+      const cacheKey = getSchoolFolderCacheKey(folderName);
+      const cachedFolderId = schoolFolderId || localStorage.getItem(cacheKey);
+
+      cameraStatus.textContent = `学校フォルダ確認中...${folderName}`;
+
+      let folders = await fetchSchoolDriveFolders(token, folderName);
+
+      if (folders.length) {
+        const canonicalFolder = folders[0];
+        schoolFolderId = canonicalFolder.id;
+        localStorage.setItem(cacheKey, canonicalFolder.id);
+
+        if (cachedFolderId && cachedFolderId !== canonicalFolder.id) {
+          localStorage.setItem(`${cacheKey}_duplicate_${cachedFolderId}`, new Date().toISOString());
+        }
+
+        return canonicalFolder.id;
       }
 
       cameraStatus.textContent = `学校フォルダ作成中...${folderName}`;
 
-      const createRes = await fetch('https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&fields=id,name', {
+      const createRes = await fetch('https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&fields=id,name,createdTime', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -521,9 +555,19 @@
       }
 
       const createdFolder = await createRes.json();
-      schoolFolderId = createdFolder.id;
-      localStorage.setItem(cacheKey, createdFolder.id);
-      return createdFolder.id;
+
+      // Re-check after a short jitter so simultaneous devices converge to one folder.
+      await sleep(500 + Math.floor(Math.random() * 700));
+      folders = await fetchSchoolDriveFolders(token, folderName);
+      const canonicalFolder = folders[0] || createdFolder;
+
+      if (createdFolder.id !== canonicalFolder.id) {
+        await trashDuplicateSchoolFolder(token, createdFolder.id, canonicalFolder.id);
+      }
+
+      schoolFolderId = canonicalFolder.id;
+      localStorage.setItem(cacheKey, canonicalFolder.id);
+      return canonicalFolder.id;
     }
 
     async function startDriveResumableSession(blob, fileInfo, mimeType, token, parentFolderId) {
