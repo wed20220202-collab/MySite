@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flashlight Test</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="wrap app-console">
+    <header class="app-topbar">
+      <div>
+        <p class="page-kicker">端末ライト検証</p>
+        <h1>FLASHLIGHT TEST</h1>
+        <p class="muted">背面カメラのライトを点灯・消灯・点滅できるか確認します。</p>
+      </div>
+      <nav class="app-nav">
+        <a class="btn" href="index.html">参加者画面</a>
+        <a class="btn" href="admin.html">管理画面</a>
+      </nav>
+    </header>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <h2>ライト操作</h2>
+          <p class="muted">Android Chrome系では動くことがあります。iPhone Safariは未対応の可能性が高いです。</p>
+        </div>
+      </div>
+
+      <div class="studio-actions">
+        <button id="initTorch" class="primary" type="button">ライト準備</button>
+        <button id="torchOn" type="button" disabled>点灯</button>
+        <button id="torchOff" type="button" disabled>消灯</button>
+        <button id="blinkOnce" type="button" disabled>1回点滅</button>
+        <button id="blinkLoop" type="button" disabled>連続点滅</button>
+        <button id="stopBlink" class="danger" type="button" disabled>停止</button>
+      </div>
+
+      <p id="status" class="status">ライト準備を押してください</p>
+      <video id="preview" class="light-preview" autoplay playsinline muted></video>
+    </section>
+  </main>
+
+  <script>
+    const initTorchBtn = document.getElementById('initTorch');
+    const torchOnBtn = document.getElementById('torchOn');
+    const torchOffBtn = document.getElementById('torchOff');
+    const blinkOnceBtn = document.getElementById('blinkOnce');
+    const blinkLoopBtn = document.getElementById('blinkLoop');
+    const stopBlinkBtn = document.getElementById('stopBlink');
+    const status = document.getElementById('status');
+    const preview = document.getElementById('preview');
+
+    let stream = null;
+    let track = null;
+    let torchSupported = false;
+    let blinkTimer = null;
+    let blinkOn = false;
+
+    function setStatus(message) {
+      status.textContent = message;
+    }
+
+    function setButtonsReady(isReady) {
+      torchOnBtn.disabled = !isReady;
+      torchOffBtn.disabled = !isReady;
+      blinkOnceBtn.disabled = !isReady;
+      blinkLoopBtn.disabled = !isReady;
+      stopBlinkBtn.disabled = !isReady;
+    }
+
+    async function setTorch(on) {
+      if (!track || !torchSupported) {
+        setStatus('この端末またはブラウザはtorchに未対応です');
+        return false;
+      }
+
+      try {
+        await track.applyConstraints({ advanced: [{ torch: on }] });
+        blinkOn = on;
+        setStatus(on ? 'ライト点灯中' : 'ライト消灯中');
+        return true;
+      } catch (error) {
+        console.error(error);
+        setStatus(`ライト制御失敗: ${error.name || error.message}`);
+        return false;
+      }
+    }
+
+    async function initTorch() {
+      stopBlink();
+
+      if (stream) {
+        stream.getTracks().forEach(item => item.stop());
+        stream = null;
+        track = null;
+      }
+
+      try {
+        setStatus('背面カメラを起動中...');
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        });
+
+        preview.srcObject = stream;
+        track = stream.getVideoTracks()[0];
+
+        const capabilities = track.getCapabilities?.() || {};
+        torchSupported = Boolean(capabilities.torch);
+
+        if (!torchSupported) {
+          setButtonsReady(false);
+          setStatus('カメラは起動しましたが、この端末はtorch未対応です');
+          return;
+        }
+
+        setButtonsReady(true);
+        setStatus('torch対応です。点灯/点滅を試せます');
+      } catch (error) {
+        console.error(error);
+        setButtonsReady(false);
+        setStatus(`カメラ起動失敗: ${error.name || error.message}`);
+      }
+    }
+
+    async function blinkOnce(duration = 120) {
+      stopBlink();
+      const ok = await setTorch(true);
+      if (!ok) return;
+
+      setTimeout(() => {
+        setTorch(false);
+      }, duration);
+    }
+
+    function startBlinkLoop() {
+      if (!track || !torchSupported) {
+        setStatus('先にライト準備を押してください');
+        return;
+      }
+
+      stopBlink();
+      setStatus('連続点滅中');
+
+      blinkTimer = setInterval(() => {
+        setTorch(!blinkOn);
+      }, 220);
+    }
+
+    function stopBlink() {
+      clearInterval(blinkTimer);
+      blinkTimer = null;
+
+      if (track && torchSupported && blinkOn) {
+        setTorch(false);
+      }
+    }
+
+    window.addEventListener('pagehide', () => {
+      stopBlink();
+
+      if (stream) {
+        stream.getTracks().forEach(item => item.stop());
+      }
+    });
+
+    initTorchBtn.addEventListener('click', initTorch);
+    torchOnBtn.addEventListener('click', () => setTorch(true));
+    torchOffBtn.addEventListener('click', () => setTorch(false));
+    blinkOnceBtn.addEventListener('click', () => blinkOnce());
+    blinkLoopBtn.addEventListener('click', startBlinkLoop);
+    stopBlinkBtn.addEventListener('click', stopBlink);
+  </script>
+</body>
+</html>

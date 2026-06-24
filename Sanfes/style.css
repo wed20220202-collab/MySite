@@ -1131,6 +1131,15 @@ button.danger,
   box-shadow: 0 12px 28px rgba(31, 47, 71, 0.12);
 }
 
+.light-preview {
+  width: min(100%, 520px);
+  aspect-ratio: 16 / 9;
+  margin-top: 14px;
+  border-radius: 14px;
+  background: #0f172a;
+  object-fit: cover;
+}
+
 .color-timeline {
   padding-top: 6px;
 }
