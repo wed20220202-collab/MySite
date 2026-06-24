@@ -14,7 +14,7 @@
       <div>
         <p class="page-kicker">カラー制御スタジオ</p>
         <h1>MOVIE COLOR</h1>
-        <p class="version-badge page-version">v0.8.4-drive-folder-fix</p>
+        <p class="version-badge page-version">v0.9.0-unified-studio</p>
         <p class="muted">動画からの色抽出、手動カラー作成、保存済みシーケンスの編集を1画面で管理します。</p>
       </div>
       <nav class="app-nav">
@@ -93,6 +93,41 @@
           </div>
         </div>
 
+
+
+        <div id="beat-analyzer" class="beat-editor-panel">
+          <div class="panel-heading compact-heading">
+            <div>
+              <h2>Beat Analyzer</h2>
+              <p class="muted">Generate beat-aware color sequences from MP4 audio.</p>
+            </div>
+          </div>
+
+          <div class="field-grid two-col">
+            <label>
+              <span>Sensitivity</span>
+              <input id="beatSensitivity" type="number" value="0.85" min="0.35" max="2.5" step="0.05" />
+            </label>
+            <label>
+              <span>Theme</span>
+              <select id="beatTheme">
+                <option value="festival">Festival</option>
+                <option value="rainbow">Rainbow</option>
+                <option value="red">Red</option>
+                <option value="blue">Blue</option>
+                <option value="school">School</option>
+                <option value="whiteFlash">White Flash</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="studio-actions compact">
+            <button id="analyzeBeat" class="primary" type="button">Generate Beat</button>
+            <button id="previewBeat" type="button">Preview Beat</button>
+          </div>
+
+          <p id="beatSummary" class="status">Beat not generated</p>
+        </div>
         <p id="status" class="status">動画を選択、またはColor Editorで色を追加してください。</p>
       </article>
 
@@ -106,6 +141,8 @@
 
         <video id="video" controls muted playsinline></video>
         <canvas id="canvas" style="display:none;"></canvas>
+        <div id="beatPreviewStage" class="beat-preview-stage"></div>
+        <p id="beatPreviewText" class="status">Beat preview waiting</p>
         <div id="colors" class="colors color-timeline"></div>
       </article>
     </section>
@@ -233,9 +270,16 @@
     const editorStepInput = document.getElementById('editorStep');
     const addEditorColorBtn = document.getElementById('addEditorColor');
     const clearEditorBtn = document.getElementById('clearEditor');
+    const beatSensitivityInput = document.getElementById('beatSensitivity');
+    const beatThemeInput = document.getElementById('beatTheme');
+    const analyzeBeatBtn = document.getElementById('analyzeBeat');
+    const previewBeatBtn = document.getElementById('previewBeat');
+    const beatSummary = document.getElementById('beatSummary');
     const status = document.getElementById('status');
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
+    const beatPreviewStage = document.getElementById('beatPreviewStage');
+    const beatPreviewText = document.getElementById('beatPreviewText');
     const colors = document.getElementById('colors');
 
     const sequenceList = document.getElementById('sequenceList');
@@ -261,6 +305,8 @@
     const torchCueRows = document.getElementById('torchCueRows');
 
     let frames = [];
+    let generatedDuration = 0;
+    let previewTimer = null;
     let sequences = [];
     let selected = null;
 
@@ -282,7 +328,12 @@
       video.src = URL.createObjectURL(file);
       status.textContent = `読み込み完了: ${file.name}`;
       frames = [];
+      generatedDuration = 0;
+      clearInterval(previewTimer);
       colors.innerHTML = '';
+      beatPreviewStage.style.background = '#0f172a';
+      beatPreviewText.textContent = 'Beat preview waiting';
+      beatSummary.textContent = 'Beat not generated';
     });
 
     function waitVideoSeek() {
@@ -370,6 +421,200 @@
       });
     }
 
+
+
+    function getThemeColors(theme) {
+      if (theme === 'rainbow') {
+        return {
+          base: ['#160022', '#001122', '#001010'],
+          beat: ['#ff0000', '#ffff00', '#00ff00', '#00ffff', '#0000ff', '#ff00ff', '#ffffff']
+        };
+      }
+
+      if (theme === 'red') {
+        return {
+          base: ['#080000', '#120000', '#1a0000'],
+          beat: ['#ff0000', '#ff3333', '#ff8800', '#ffffff']
+        };
+      }
+
+      if (theme === 'blue') {
+        return {
+          base: ['#000610', '#001122', '#000b1a'],
+          beat: ['#0044ff', '#00aaff', '#66ffff', '#ffffff']
+        };
+      }
+
+      if (theme === 'school') {
+        return {
+          base: ['#020014', '#001018', '#100016'],
+          beat: ['#00ffff', '#ff00ff', '#ffffff', '#0000ff']
+        };
+      }
+
+      if (theme === 'whiteFlash') {
+        return {
+          base: ['#000000', '#050505'],
+          beat: ['#ffffff', '#eeeeee', '#00ffff']
+        };
+      }
+
+      return {
+        base: ['#05000c', '#001014', '#000000'],
+        beat: ['#ff00ff', '#00ffff', '#ffffff', '#ff0066', '#ffff00']
+      };
+    }
+
+    function pickColor(list, index) {
+      return list[index % list.length];
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function getVolumeReference(volumes) {
+      const sorted = [...volumes].sort((a, b) => a - b);
+      const index = Math.floor(sorted.length * 0.9);
+      return sorted[index] || Math.max(...volumes, 0.001);
+    }
+
+    function applyVolumeIntensity(hexColor, volume, reference, isBeat) {
+      const clean = hexColor.replace('#', '');
+      const r = parseInt(clean.slice(0, 2), 16);
+      const g = parseInt(clean.slice(2, 4), 16);
+      const b = parseInt(clean.slice(4, 6), 16);
+      const normalized = reference > 0 ? clamp(volume / reference, 0, 1) : 0;
+      const curve = Math.pow(normalized, 0.65);
+      const intensity = clamp((isBeat ? 0.35 : 0.18) + curve * (isBeat ? 0.8 : 0.62), 0.12, 1.15);
+      const toHex = value => clamp(Math.round(value), 0, 255).toString(16).padStart(2, '0');
+
+      return `#${toHex(r * intensity)}${toHex(g * intensity)}${toHex(b * intensity)}`;
+    }
+
+    async function decodeAudioFromVideoFile(file) {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) {
+        throw new Error('This browser does not support audio analysis.');
+      }
+
+      const audioContext = new AudioContextClass();
+      const arrayBuffer = await file.arrayBuffer();
+
+      status.textContent = 'Decoding audio...';
+
+      try {
+        return await audioContext.decodeAudioData(arrayBuffer);
+      } finally {
+        await audioContext.close();
+      }
+    }
+
+    function calcRms(channelData, startSample, endSample) {
+      let sum = 0;
+      let count = 0;
+
+      for (let i = startSample; i < endSample; i++) {
+        const value = channelData[i] || 0;
+        sum += value * value;
+        count++;
+      }
+
+      return count ? Math.sqrt(sum / count) : 0;
+    }
+
+    function movingAverage(values, center, radius) {
+      let sum = 0;
+      let count = 0;
+      const start = Math.max(0, center - radius);
+      const end = Math.min(values.length - 1, center + radius);
+
+      for (let i = start; i <= end; i++) {
+        sum += values[i];
+        count++;
+      }
+
+      return count ? sum / count : 0;
+    }
+
+    function generateBeatSequence(audioBuffer, interval, sensitivity, theme) {
+      const channelData = audioBuffer.getChannelData(0);
+      const sampleRate = audioBuffer.sampleRate;
+      const totalDuration = audioBuffer.duration;
+      const steps = Math.ceil(totalDuration / interval);
+      const volumes = [];
+
+      for (let i = 0; i < steps; i++) {
+        const startTime = i * interval;
+        const endTime = Math.min(totalDuration, startTime + interval);
+        const startSample = Math.floor(startTime * sampleRate);
+        const endSample = Math.floor(endTime * sampleRate);
+        volumes.push(calcRms(channelData, startSample, endSample));
+      }
+
+      const palette = getThemeColors(theme);
+      const volumeReference = getVolumeReference(volumes);
+      const result = [];
+      let beatIndex = 0;
+      let baseIndex = 0;
+      let lastBeat = -999;
+
+      for (let i = 0; i < volumes.length; i++) {
+        const time = i * interval;
+        const volume = volumes[i];
+        const avg = movingAverage(volumes, i, 3);
+        const previous = volumes[i - 1] || 0;
+        const next = volumes[i + 1] || 0;
+        const threshold = Math.max(0.35, Number(sensitivity) || 0.85);
+        const attack = volume - previous;
+        const lift = avg > 0 ? (volume - avg) / avg : 0;
+        const isPeak = volume >= previous * 1.03 && volume >= next * 0.98;
+        const isStrong = avg > 0 && volume > avg * threshold;
+        const isTransient = avg > 0 && attack > avg * 0.18 * threshold;
+        const isLifted = lift > 0.1 * threshold;
+        const cooldownOk = i - lastBeat >= 1;
+        const isBeat = cooldownOk && ((isPeak && isStrong) || (isTransient && isLifted));
+        let color;
+
+        if (isBeat) {
+          color = pickColor(palette.beat, beatIndex);
+          beatIndex++;
+          lastBeat = i;
+        } else {
+          color = pickColor(palette.base, baseIndex);
+          baseIndex++;
+        }
+
+        color = applyVolumeIntensity(color, volume, volumeReference, isBeat);
+
+        result.push({
+          time: Number(time.toFixed(3)),
+          color,
+          volume: Number(volume.toFixed(6)),
+          intensity: Number((volumeReference > 0 ? clamp(volume / volumeReference, 0, 1) : 0).toFixed(6)),
+          lift: Number(lift.toFixed(6)),
+          beat: isBeat
+        });
+      }
+
+      return {
+        frames: result,
+        duration: totalDuration
+      };
+    }
+
+    function updateBeatSummary() {
+      const beatCount = frames.filter(frame => frame.beat).length;
+      beatSummary.textContent = frames.length
+        ? `${frames.length} frames / ${beatCount} beats`
+        : 'Beat not generated';
+    }
+
+    function getDraftDuration() {
+      if (generatedDuration > 0) return generatedDuration;
+      if (Number.isFinite(video.duration)) return video.duration;
+      return (frames.at(-1)?.time || 0) + (Number(intervalInput.value) || 0.5);
+    }
     function renderColors() {
       colors.innerHTML = '';
 
@@ -382,6 +627,8 @@
         div.textContent = i + 1;
         colors.appendChild(div);
       });
+
+      updateBeatSummary();
     }
 
     extractBtn.addEventListener('click', async () => {
@@ -425,9 +672,7 @@
         interval: Number(intervalInput.value) || 0.5,
         torchPulseMs: Number(torchPulseMsInput.value) || 180,
         torchCooldownMs: Number(torchCooldownMsInput.value) || 140,
-        duration: Number.isFinite(video.duration)
-          ? video.duration
-          : ((frames.at(-1)?.time || 0) + (Number(intervalInput.value) || 0.5)),
+        duration: getDraftDuration(),
         frames
       };
 
@@ -440,8 +685,13 @@
       if (!confirm('保存済みシーケンスをすべて削除しますか？')) return;
 
       await clearSequences();
+      clearInterval(previewTimer);
       frames = [];
+      generatedDuration = 0;
       colors.innerHTML = '';
+      beatPreviewStage.style.background = '#0f172a';
+      beatPreviewText.textContent = 'Beat preview waiting';
+      updateBeatSummary();
       selected = null;
       status.textContent = 'すべて削除しました';
       await loadSequences();
@@ -463,9 +713,79 @@
       status.textContent = `Color Editor: ${frames.length}フレーム / ${interval.toFixed(1)}秒ステップ`;
     });
 
+
+
+    analyzeBeatBtn.addEventListener('click', async () => {
+      const file = fileInput.files[0];
+
+      if (!file) {
+        alert('Select an MP4/video file first.');
+        return;
+      }
+
+      try {
+        analyzeBeatBtn.disabled = true;
+        clearInterval(previewTimer);
+
+        await new Promise(resolve => {
+          if (video.readyState >= 1) resolve();
+          else video.onloadedmetadata = resolve;
+        });
+
+        const interval = Number(intervalInput.value) || 0.2;
+        const sensitivity = Number(beatSensitivityInput.value) || 0.85;
+        const theme = beatThemeInput.value;
+
+        status.textContent = 'Analyzing beat...';
+        const audioBuffer = await decodeAudioFromVideoFile(file);
+        const generated = generateBeatSequence(audioBuffer, interval, sensitivity, theme);
+
+        frames = generated.frames;
+        generatedDuration = generated.duration;
+
+        if (nameInput.value === 'festival-sequence') {
+          nameInput.value = 'beat-color-sequence';
+        }
+
+        renderColors();
+        beatPreviewStage.style.background = frames[0]?.color || '#0f172a';
+        beatPreviewText.textContent = `${frames.length} frames / ${generatedDuration.toFixed(1)}s`;
+        status.textContent = `Beat generated: ${frames.length} frames / ${generatedDuration.toFixed(1)}s`;
+      } catch (error) {
+        console.error(error);
+        status.textContent = `Beat analysis failed: ${error.message}`;
+        alert(`Beat analysis failed: ${error.message}`);
+      } finally {
+        analyzeBeatBtn.disabled = false;
+      }
+    });
+
+    previewBeatBtn.addEventListener('click', () => {
+      if (!frames.length) {
+        alert('Generate beat or colors first.');
+        return;
+      }
+
+      clearInterval(previewTimer);
+
+      let index = 0;
+      const interval = Number(intervalInput.value) || 0.2;
+
+      previewTimer = setInterval(() => {
+        const frame = frames[index];
+        beatPreviewStage.style.background = frame.color;
+        beatPreviewText.textContent = `${index + 1}/${frames.length} ${frame.time}s ${frame.color} ${frame.beat ? 'BEAT' : ''}`;
+        index = (index + 1) % frames.length;
+      }, interval * 1000);
+    });
     clearEditorBtn.addEventListener('click', () => {
+      clearInterval(previewTimer);
       frames = [];
+      generatedDuration = 0;
       colors.innerHTML = '';
+      beatPreviewStage.style.background = '#0f172a';
+      beatPreviewText.textContent = 'Beat preview waiting';
+      updateBeatSummary();
       status.textContent = '作成中の色をクリアしました';
     });
 
