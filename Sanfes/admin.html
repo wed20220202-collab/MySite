@@ -46,7 +46,7 @@
       <div>
         <p class="page-kicker">運営コントロール</p>
         <h1>管理画面</h1>
-        <p class="version-badge page-version">v0.9.4-torch-diagnostics</p>
+        <p class="version-badge page-version">v0.9.5-torch-visibility</p>
         <p class="muted">カラー演出の再生、手動カラー送信、各ページの入退室とログイン状態を確認できます。</p>
       </div>
       <nav class="app-nav account-nav">
@@ -181,6 +181,9 @@
     let selected = null;
     let timer = null;
     let dashboardStarted = false;
+    const MIN_TORCH_PULSE_MS = 650;
+    const DEFAULT_TORCH_PULSE_MS = 720;
+    const DEFAULT_TORCH_COOLDOWN_MS = 260;
 
     const auth = getAuth();
     const provider = new GoogleAuthProvider();
@@ -336,8 +339,8 @@
         intensity: 0,
         hasTorchCues: false,
         torchCueActive: false,
-          torchPulseMs: selected?.torchPulseMs || 360,
-          torchCooldownMs: selected?.torchCooldownMs || 180,
+          torchPulseMs: Math.max(Number(selected?.torchPulseMs || DEFAULT_TORCH_PULSE_MS), MIN_TORCH_PULSE_MS),
+          torchCooldownMs: Math.max(Number(selected?.torchCooldownMs || DEFAULT_TORCH_COOLDOWN_MS), DEFAULT_TORCH_COOLDOWN_MS),
         sequenceId: selected?.id || null,
         sequenceName: selected?.name || 'stop'
       });
@@ -391,8 +394,8 @@
           lift: Number(frame.lift || 0),
           hasTorchCues: torchCues.length > 0,
           torchCueActive: isTorchCueActive(torchCues, elapsedSec),
-          torchPulseMs: Number(selected.torchPulseMs || 360),
-          torchCooldownMs: Number(selected.torchCooldownMs || 180),
+          torchPulseMs: Math.max(Number(selected.torchPulseMs || DEFAULT_TORCH_PULSE_MS), MIN_TORCH_PULSE_MS),
+          torchCooldownMs: Math.max(Number(selected.torchCooldownMs || DEFAULT_TORCH_COOLDOWN_MS), DEFAULT_TORCH_COOLDOWN_MS),
           sequenceId: selected.id,
           sequenceName: selected.name,
           frameIndex: currentIndex,
@@ -422,8 +425,8 @@
         intensity: 1,
         hasTorchCues: false,
         torchCueActive: false,
-        torchPulseMs: 360,
-        torchCooldownMs: 180,
+        torchPulseMs: DEFAULT_TORCH_PULSE_MS,
+        torchCooldownMs: DEFAULT_TORCH_COOLDOWN_MS,
         sequenceName: 'manual'
       });
 
@@ -440,8 +443,8 @@
         intensity: 0,
         hasTorchCues: false,
         torchCueActive: false,
-        torchPulseMs: 360,
-        torchCooldownMs: 180,
+        torchPulseMs: DEFAULT_TORCH_PULSE_MS,
+        torchCooldownMs: DEFAULT_TORCH_COOLDOWN_MS,
         sequenceName: 'blackout'
       });
 

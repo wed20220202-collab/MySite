@@ -46,7 +46,7 @@
 
   <div id="mainPanel" class="participant-ui hidden">
     <h1>FESTIVAL COLOR</h1>
-    <p class="version-badge">v0.9.4-torch-diagnostics</p>
+    <p class="version-badge">v0.9.5-torch-visibility</p>
     <p id="studentIdText">未ログイン</p>
     <p>～この画面で待機してください～</p>
     <p id="uploadStatus">アップロード待機中</p>
@@ -101,9 +101,10 @@
       "vga29-pc250006@sankogakuen.jp"
     ];
     const LOGIN_HEARTBEAT_MS = 60000;
-    const MIN_TORCH_PULSE_MS = 320;
-    const DEFAULT_TORCH_PULSE_MS = 360;
-    const DEFAULT_TORCH_COOLDOWN_MS = 180;
+    const MIN_TORCH_PULSE_MS = 650;
+    const DEFAULT_TORCH_PULSE_MS = 720;
+    const DEFAULT_TORCH_COOLDOWN_MS = 260;
+    const TORCH_TEST_PULSE_MS = 1600;
 
     const firebaseConfig = {
       apiKey: "AIzaSyC7oudfhfJC7zssUb0KR98tFy_lxvVT0bI",
@@ -165,8 +166,10 @@
     let torchApplyPending = false;
     let torchPulseTimer = null;
     let torchPulseToken = 0;
+    let torchPulseCount = 0;
     let torchHoldUntil = 0;
     let lastTorchPulseAt = 0;
+    let lastTorchPulseEndedAt = 0;
     let lastTorchFrameIndex = -1;
     let lastTorchError = 'none';
     let lastTorchReason = 'waiting';
@@ -965,8 +968,10 @@
     }
 
     async function pulseTorch(duration = DEFAULT_TORCH_PULSE_MS) {
-      const visibleDuration = clampNumber(duration, MIN_TORCH_PULSE_MS, 1200, DEFAULT_TORCH_PULSE_MS);
+      const visibleDuration = clampNumber(duration, MIN_TORCH_PULSE_MS, 1800, DEFAULT_TORCH_PULSE_MS);
       const pulseToken = ++torchPulseToken;
+      torchPulseCount++;
+      lastTorchPulseAt = Date.now();
       torchHoldUntil = 0;
       clearTimeout(torchPulseTimer);
       await setTorch(true, { reason: `pulse on ${visibleDuration}ms` });
@@ -984,6 +989,7 @@
           return;
         }
 
+        lastTorchPulseEndedAt = Date.now();
         setTorch(false, { reason: `pulse ended ${visibleDuration}ms` });
       }, visibleDuration);
     }
@@ -1108,6 +1114,7 @@
         `desiredTorchState: ${desiredTorchState}`,
         `torchApplyPending: ${torchApplyPending}`,
         `pulseToken: ${torchPulseToken}`,
+        `pulseCount: ${torchPulseCount}`,
         `holdMs: ${Math.max(0, torchHoldUntil - Date.now())}`,
         `facing: ${currentFacingMode}`,
         `hasTrack: ${Boolean(getVideoTrack())}`,
@@ -1122,6 +1129,8 @@
         `actualPulseMinMs: ${MIN_TORCH_PULSE_MS}`,
         `cooldownMs: ${String(session.torchCooldownMs ?? '-')}`,
         `lastPulse: ${formatDebugTime(lastTorchPulseAt)}`,
+        `lastPulseAgeMs: ${lastTorchPulseAt ? Date.now() - lastTorchPulseAt : '-'}`,
+        `lastPulseEnd: ${formatDebugTime(lastTorchPulseEndedAt)}`,
         `reason: ${lastTorchReason}`,
         `error: ${lastTorchError}`
       ].join('\n');
@@ -1155,7 +1164,7 @@
       } else {
         lastTorchFrameIndex = -1;
         lastTorchPulseAt = 0;
-        await pulseTorch(DEFAULT_TORCH_PULSE_MS);
+        await pulseTorch(TORCH_TEST_PULSE_MS);
       }
 
       cameraStatus.textContent = torchSyncEnabled ? 'フラッシュ連動ON' : 'フラッシュ連動OFF';

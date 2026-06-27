@@ -39,7 +39,7 @@
       <div>
         <p class="page-kicker">カラー制御スタジオ</p>
         <h1>MOVIE COLOR</h1>
-        <p class="version-badge page-version">v0.9.4-torch-diagnostics</p>
+        <p class="version-badge page-version">v0.9.5-torch-visibility</p>
         <p class="muted">動画からの色抽出、手動カラー作成、保存済みシーケンスの編集を1画面で管理します。</p>
       </div>
     </header>
@@ -70,8 +70,8 @@
         </div>
 
         <input id="interval" type="hidden" value="0.5" />
-        <input id="torchPulseMs" type="hidden" value="360" />
-        <input id="torchCooldownMs" type="hidden" value="180" />
+        <input id="torchPulseMs" type="hidden" value="720" />
+        <input id="torchCooldownMs" type="hidden" value="260" />
 
         <div class="generation-panel">
           <div class="panel-heading compact-heading">
@@ -216,11 +216,11 @@
             </label>
             <label>
               <span>ライト点灯 ms</span>
-              <input id="sequenceTorchPulseMs" type="number" min="40" max="800" step="10" />
+              <input id="sequenceTorchPulseMs" type="number" min="650" max="1800" step="10" />
             </label>
             <label>
               <span>ライト間隔 ms</span>
-              <input id="sequenceTorchCooldownMs" type="number" min="40" max="1000" step="10" />
+              <input id="sequenceTorchCooldownMs" type="number" min="260" max="1200" step="10" />
             </label>
           </div>
 
@@ -332,8 +332,8 @@
 
     const COLOR_EXTRACT_INTERVAL_SECONDS = 0.5;
     const BEAT_ANALYSIS_INTERVAL_SECONDS = 0.2;
-    const DEFAULT_TORCH_PULSE_MS = 360;
-    const DEFAULT_TORCH_COOLDOWN_MS = 180;
+    const DEFAULT_TORCH_PULSE_MS = 720;
+    const DEFAULT_TORCH_COOLDOWN_MS = 260;
 
     let frames = [];
     let generatedDuration = 0;
