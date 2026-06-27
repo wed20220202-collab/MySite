@@ -39,7 +39,7 @@
       <div>
         <p class="page-kicker">カラー制御スタジオ</p>
         <h1>MOVIE COLOR</h1>
-        <p class="version-badge page-version">v0.9.7-torch-sync-fix</p>
+        <p class="version-badge page-version">v0.9.9-light-timeline-beats</p>
         <p class="muted">動画からの色抽出、手動カラー作成、保存済みシーケンスの編集を1画面で管理します。</p>
       </div>
     </header>
@@ -336,6 +336,7 @@
     const DEFAULT_TORCH_COOLDOWN_MS = 260;
 
     let frames = [];
+    let draftTorchCues = [];
     let generatedDuration = 0;
     let previewTimer = null;
     let sequences = [];
@@ -359,6 +360,7 @@
       video.src = URL.createObjectURL(file);
       status.textContent = `読み込み完了: ${file.name}`;
       frames = [];
+      draftTorchCues = [];
       generatedDuration = 0;
       clearInterval(previewTimer);
       colors.innerHTML = '';
@@ -651,6 +653,7 @@
       clearInterval(previewTimer);
       previewTimer = null;
       frames = [];
+      draftTorchCues = [];
       generatedDuration = 0;
       colors.innerHTML = '';
       beatPreviewStage.style.background = '#0f172a';
@@ -701,6 +704,7 @@
       }
 
       frames = addAutoBeatData(frames);
+      draftTorchCues = buildTorchCuesFromFrames(frames, interval);
       renderColors();
       status.textContent = `映像色から生成しました: ${frames.length}フレーム`;
     });
@@ -716,6 +720,9 @@
         interval: Number(intervalInput.value) || 0.5,
         torchPulseMs: Number(torchPulseMsInput.value) || DEFAULT_TORCH_PULSE_MS,
         torchCooldownMs: Number(torchCooldownMsInput.value) || DEFAULT_TORCH_COOLDOWN_MS,
+        torchCues: draftTorchCues.length
+          ? draftTorchCues
+          : buildTorchCuesFromFrames(frames, Number(intervalInput.value) || 0.5),
         duration: getDraftDuration(),
         frames
       };
@@ -744,6 +751,7 @@
 
       frames.push({ time, color, beat: true, intensity: 1, volume: 1, lift: 255 });
       intervalInput.value = String(interval);
+      draftTorchCues = buildTorchCuesFromFrames(frames, interval);
 
       if (nameInput.value === 'festival-sequence') {
         nameInput.value = 'color-editor-sequence';
@@ -783,6 +791,7 @@
 
         frames = generated.frames;
         generatedDuration = generated.duration;
+        draftTorchCues = buildTorchCuesFromFrames(frames, interval);
 
         if (nameInput.value === 'festival-sequence') {
           nameInput.value = 'beat-color-sequence';
@@ -841,8 +850,8 @@
       };
     }
 
-    function getFormSequence() {
-      const editedFrames = Array.from(frameRows.querySelectorAll('.frame-row'))
+    function readFrameRows() {
+      return Array.from(frameRows.querySelectorAll('.frame-row'))
         .map(row => ({
           time: Number(row.querySelector('[data-field="time"]').value || 0),
           color: row.querySelector('[data-field="color"]').value || '#000000',
@@ -852,6 +861,10 @@
           lift: row.querySelector('[data-field="beat"]').checked ? 255 : 0
         }))
         .sort((a, b) => a.time - b.time);
+    }
+
+    function getFormSequence() {
+      const editedFrames = readFrameRows();
 
       return {
         ...selected,
@@ -908,6 +921,15 @@
         row.querySelector('[data-action="remove"]').addEventListener('click', () => {
           row.remove();
           updateFrameCount();
+          renderTorchCues(buildTorchCuesFromFrames(readFrameRows(), Number(sequenceInterval.value || 0.2)));
+        });
+
+        row.querySelector('[data-field="beat"]').addEventListener('change', () => {
+          renderTorchCues(buildTorchCuesFromFrames(readFrameRows(), Number(sequenceInterval.value || 0.2)));
+        });
+
+        row.querySelector('[data-field="time"]').addEventListener('change', () => {
+          renderTorchCues(buildTorchCuesFromFrames(readFrameRows(), Number(sequenceInterval.value || 0.2)));
         });
 
         frameRows.appendChild(row);
@@ -929,10 +951,72 @@
       );
     }
 
+    function getSequenceIntervalValue() {
+      const value = Number(sequenceInterval.value || selected?.interval || 0.2);
+      return Number.isFinite(value) && value > 0 ? value : 0.2;
+    }
+
+    function getStepDecimals(step) {
+      const stepText = String(step);
+      if (stepText.includes('e-')) {
+        return Math.min(4, Number(stepText.split('e-')[1]) || 1);
+      }
+      return Math.min(4, (stepText.split('.')[1] || '').length || 1);
+    }
+
+    function formatSequenceSeconds(value) {
+      return Number(value || 0).toFixed(getStepDecimals(getSequenceIntervalValue()));
+    }
+
+    function snapToSequenceInterval(value, minimum = 0) {
+      const step = getSequenceIntervalValue();
+      const numeric = Number(value);
+      const safeValue = Number.isFinite(numeric) ? numeric : 0;
+      const snapped = Math.round(safeValue / step) * step;
+      return Math.max(minimum, Number(snapped.toFixed(4)));
+    }
+
+    function snapDurationToSequenceInterval(value) {
+      const step = getSequenceIntervalValue();
+      return snapToSequenceInterval(value, step);
+    }
+
+    function updateTorchCueStepControls() {
+      const step = getSequenceIntervalValue();
+      const stepText = String(step);
+      torchCueStart.step = stepText;
+      torchCueDuration.step = stepText;
+      torchCueDuration.min = stepText;
+
+      torchCueStart.value = formatSequenceSeconds(snapToSequenceInterval(torchCueStart.value, 0));
+      torchCueDuration.value = formatSequenceSeconds(snapDurationToSequenceInterval(torchCueDuration.value || step));
+    }
+
+    function buildTorchCuesFromFrames(sourceFrames, interval = getSequenceIntervalValue()) {
+      const step = Number.isFinite(Number(interval)) && Number(interval) > 0 ? Number(interval) : getSequenceIntervalValue();
+      const seen = new Set();
+
+      return (sourceFrames || [])
+        .filter(frame => Boolean(frame?.beat))
+        .map(frame => {
+          const numericTime = Number(frame?.time || 0);
+          const time = Math.max(0, Number((Math.round(numericTime / step) * step).toFixed(4)));
+          const key = time.toFixed(4);
+          if (seen.has(key)) return null;
+          seen.add(key);
+          return {
+            time,
+            duration: step
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.time - b.time);
+    }
+
     function normalizeTorchCue(cue) {
       return {
-        time: Math.max(0, Number(cue?.time || 0)),
-        duration: Math.max(0.1, Number(cue?.duration || 0.3))
+        time: snapToSequenceInterval(cue?.time, 0),
+        duration: snapDurationToSequenceInterval(cue?.duration || getSequenceIntervalValue())
       };
     }
 
@@ -961,15 +1045,18 @@
         bar.className = 'torch-cue-bar';
         bar.style.left = `${left}%`;
         bar.style.width = `${width}%`;
-        bar.title = `${cue.time.toFixed(1)}秒 - ${(cue.time + cue.duration).toFixed(1)}秒`;
+        bar.title = `${formatSequenceSeconds(cue.time)}秒 - ${formatSequenceSeconds(cue.time + cue.duration)}秒`;
         torchTimeline.appendChild(bar);
       });
     }
 
     function renderTorchCues(sourceCues = []) {
+      updateTorchCueStepControls();
       torchCueRows.innerHTML = '';
 
       const cues = sourceCues.map(normalizeTorchCue).sort((a, b) => a.time - b.time);
+      const step = getSequenceIntervalValue();
+      const stepText = String(step);
 
       if (!cues.length) {
         torchCueRows.innerHTML = '<p class="muted empty-state">ライト区間はまだありません。</p>';
@@ -981,13 +1068,14 @@
         const row = document.createElement('div');
         row.className = 'torch-cue-row';
         row.innerHTML = `
-          <input data-field="cue-time" type="number" min="0" step="0.1" value="${cue.time.toFixed(1)}">
-          <input data-field="cue-duration" type="number" min="0.1" step="0.1" value="${cue.duration.toFixed(1)}">
+          <input data-field="cue-time" type="number" min="0" step="${stepText}" value="${formatSequenceSeconds(cue.time)}">
+          <input data-field="cue-duration" type="number" min="${stepText}" step="${stepText}" value="${formatSequenceSeconds(cue.duration)}">
           <button class="danger" type="button" data-action="remove">削除</button>
         `;
 
         row.querySelectorAll('input').forEach(input => {
           input.addEventListener('input', () => renderTorchTimeline(getTorchCuesFromRows()));
+          input.addEventListener('change', () => renderTorchCues(getTorchCuesFromRows()));
         });
 
         row.querySelector('[data-action="remove"]').addEventListener('click', () => {
@@ -1014,7 +1102,11 @@
       sequenceTorchPulseMs.value = selected.torchPulseMs || DEFAULT_TORCH_PULSE_MS;
       sequenceTorchCooldownMs.value = selected.torchCooldownMs || DEFAULT_TORCH_COOLDOWN_MS;
       renderFrames(selected.frames || []);
-      renderTorchCues(selected.torchCues || []);
+      renderTorchCues(
+        selected.torchCues?.length
+          ? selected.torchCues
+          : buildTorchCuesFromFrames(selected.frames || [], Number(sequenceInterval.value || 0.2))
+      );
       renderList();
     }
 
@@ -1071,20 +1163,36 @@
         .sort((a, b) => a - b)
         .at(-1) || 0;
 
-      renderFrames([
+      const nextFrames = [
         ...getFormSequence().frames,
         { time: lastTime + interval, color: '#ffffff', beat: true, intensity: 1, volume: 1, lift: 255 }
-      ]);
+      ];
+
+      renderFrames(nextFrames);
+      renderTorchCues(buildTorchCuesFromFrames(nextFrames, interval));
     });
 
     sequenceDuration.addEventListener('input', () => {
       renderTorchTimeline(getTorchCuesFromRows());
     });
 
+    sequenceInterval.addEventListener('input', () => {
+      updateTorchCueStepControls();
+      renderTorchCues(getTorchCuesFromRows());
+    });
+
+    [torchCueStart, torchCueDuration].forEach(input => {
+      input.addEventListener('change', () => {
+        updateTorchCueStepControls();
+        torchCueStart.value = formatSequenceSeconds(snapToSequenceInterval(torchCueStart.value, 0));
+        torchCueDuration.value = formatSequenceSeconds(snapDurationToSequenceInterval(torchCueDuration.value));
+      });
+    });
+
     torchTimeline.addEventListener('click', event => {
       const rect = torchTimeline.getBoundingClientRect();
       const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
-      torchCueStart.value = (ratio * getSequenceDurationValue()).toFixed(1);
+      torchCueStart.value = formatSequenceSeconds(snapToSequenceInterval(ratio * getSequenceDurationValue(), 0));
     });
 
     addTorchCueBtn.addEventListener('click', () => {

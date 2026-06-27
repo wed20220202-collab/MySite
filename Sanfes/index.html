@@ -46,7 +46,7 @@
 
   <div id="mainPanel" class="participant-ui hidden">
     <h1>FESTIVAL COLOR</h1>
-    <p class="version-badge">v0.9.7-torch-sync-fix</p>
+    <p class="version-badge">v0.9.9-light-timeline-beats</p>
     <p id="studentIdText">未ログイン</p>
     <p>～この画面で待機してください～</p>
     <p id="uploadStatus">アップロード待機中</p>
@@ -159,6 +159,7 @@
     let loginHeartbeatTimer = null;
     let currentLoginUser = null;
     let torchSupported = false;
+    let torchEverWorked = false;
     let torchSyncEnabled = false;
     let torchIsOn = false;
     let desiredTorchState = false;
@@ -883,7 +884,7 @@
     }
 
     function updateTorchButton() {
-      const canUseTorch = torchSupported && currentFacingMode === 'environment' && Boolean(getVideoTrack());
+      const canUseTorch = (torchSupported || torchEverWorked) && currentFacingMode === 'environment' && Boolean(getVideoTrack());
       torchToggleBtn.disabled = !canUseTorch;
       torchToggleBtn.classList.toggle('is-active', torchSyncEnabled && canUseTorch);
       torchToggleBtn.setAttribute(
@@ -901,13 +902,13 @@
     async function refreshTorchCapability() {
       const track = getVideoTrack();
       const capabilities = track?.getCapabilities?.() || {};
-      torchSupported = Boolean(capabilities.torch);
+      torchSupported = Boolean(capabilities.torch) || (Boolean(track) && torchEverWorked);
       updateTorchButton();
     }
 
     async function applyTorchState(on, reason = '') {
       const track = getVideoTrack();
-      if (!track || !torchSupported) {
+      if (!track || (!torchSupported && !torchEverWorked)) {
         lastTorchReason = !track ? 'no video track' : 'torch unsupported';
         updateTorchDebugPanel();
         return;
@@ -915,6 +916,8 @@
 
       try {
         await track.applyConstraints({ advanced: [{ torch: on }] });
+        torchEverWorked = true;
+        torchSupported = true;
         torchIsOn = on;
         lastTorchError = 'none';
         lastTorchReason = reason || (on ? 'torch on' : 'torch off');
@@ -923,7 +926,7 @@
         console.warn('torch control failed', error);
         lastTorchError = `${error.name || 'Error'}: ${error.message || ''}`;
         lastTorchReason = 'torch error';
-        if (error.name === 'NotSupportedError' || error.name === 'TypeError') {
+        if ((error.name === 'NotSupportedError' || error.name === 'TypeError') && !torchEverWorked) {
           torchSupported = false;
           torchSyncEnabled = false;
           torchIsOn = false;
@@ -1009,10 +1012,10 @@
     }
 
     function syncTorchWithSession(session, color) {
-      if (!torchSyncEnabled || !torchSupported || currentFacingMode !== 'environment') {
+      if (!torchSyncEnabled || (!torchSupported && !torchEverWorked) || currentFacingMode !== 'environment') {
         lastTorchReason = !torchSyncEnabled
           ? 'sync off'
-          : (!torchSupported ? 'unsupported' : `facing ${currentFacingMode}`);
+          : ((!torchSupported && !torchEverWorked) ? 'unsupported' : `facing ${currentFacingMode}`);
         updateTorchDebugPanel();
         return;
       }
@@ -1124,6 +1127,7 @@
         'SANFES TORCH DEBUG',
         `time: ${new Date().toLocaleTimeString('ja-JP', { hour12: false })}`,
         `torchSupported: ${torchSupported}`,
+        `torchEverWorked: ${torchEverWorked}`,
         `torchSyncEnabled: ${torchSyncEnabled}`,
         `torchIsOn: ${torchIsOn}`,
         `desiredTorchState: ${desiredTorchState}`,
