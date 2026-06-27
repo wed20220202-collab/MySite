@@ -46,7 +46,7 @@
 
   <div id="mainPanel" class="participant-ui hidden">
     <h1>FESTIVAL COLOR</h1>
-    <p class="version-badge">v0.9.3-torch-stability</p>
+    <p class="version-badge">v0.9.4-torch-diagnostics</p>
     <p id="studentIdText">未ログイン</p>
     <p>～この画面で待機してください～</p>
     <p id="uploadStatus">アップロード待機中</p>
@@ -101,6 +101,9 @@
       "vga29-pc250006@sankogakuen.jp"
     ];
     const LOGIN_HEARTBEAT_MS = 60000;
+    const MIN_TORCH_PULSE_MS = 320;
+    const DEFAULT_TORCH_PULSE_MS = 360;
+    const DEFAULT_TORCH_COOLDOWN_MS = 180;
 
     const firebaseConfig = {
       apiKey: "AIzaSyC7oudfhfJC7zssUb0KR98tFy_lxvVT0bI",
@@ -885,7 +888,7 @@
       updateTorchButton();
     }
 
-    async function applyTorchState(on) {
+    async function applyTorchState(on, reason = '') {
       const track = getVideoTrack();
       if (!track || !torchSupported) {
         lastTorchReason = !track ? 'no video track' : 'torch unsupported';
@@ -897,7 +900,7 @@
         await track.applyConstraints({ advanced: [{ torch: on }] });
         torchIsOn = on;
         lastTorchError = 'none';
-        lastTorchReason = on ? 'torch on' : 'torch off';
+        lastTorchReason = reason || (on ? 'torch on' : 'torch off');
         updateTorchDebugPanel();
       } catch (error) {
         console.warn('torch control failed', error);
@@ -933,7 +936,7 @@
         .catch(() => {})
         .then(async () => {
           if (!options.force && torchIsOn === desiredTorchState) return;
-          await applyTorchState(desiredTorchState);
+          await applyTorchState(desiredTorchState, options.reason || '');
         })
         .finally(() => {
           torchApplyPending = false;
@@ -961,11 +964,12 @@
       return Math.min(max, Math.max(min, number));
     }
 
-    async function pulseTorch(duration = 180) {
+    async function pulseTorch(duration = DEFAULT_TORCH_PULSE_MS) {
+      const visibleDuration = clampNumber(duration, MIN_TORCH_PULSE_MS, 1200, DEFAULT_TORCH_PULSE_MS);
       const pulseToken = ++torchPulseToken;
       torchHoldUntil = 0;
       clearTimeout(torchPulseTimer);
-      await setTorch(true);
+      await setTorch(true, { reason: `pulse on ${visibleDuration}ms` });
 
       torchPulseTimer = setTimeout(() => {
         if (pulseToken !== torchPulseToken) {
@@ -980,8 +984,8 @@
           return;
         }
 
-        setTorch(false);
-      }, duration);
+        setTorch(false, { reason: `pulse ended ${visibleDuration}ms` });
+      }, visibleDuration);
     }
 
     function syncTorchWithSession(session, color) {
@@ -1000,7 +1004,7 @@
         torchPulseToken++;
         torchHoldUntil = 0;
         clearTimeout(torchPulseTimer);
-        if (torchIsOn) setTorch(false);
+        if (torchIsOn || desiredTorchState) setTorch(false, { reason: 'stop/offline' });
         lastTorchFrameIndex = -1;
         lastTorchReason = 'not playing';
         updateTorchDebugPanel();
@@ -1020,7 +1024,7 @@
         } else {
           torchHoldUntil = 0;
           lastTorchReason = 'cue inactive';
-          if (torchIsOn || desiredTorchState) setTorch(false);
+          if (torchIsOn || desiredTorchState) setTorch(false, { reason: 'cue inactive/off' });
         }
 
         updateTorchDebugPanel();
@@ -1040,7 +1044,7 @@
       }
 
       const now = Date.now();
-      const cooldownMs = clampNumber(session.torchCooldownMs, 40, 1000, 140);
+      const cooldownMs = clampNumber(session.torchCooldownMs, 40, 1000, DEFAULT_TORCH_COOLDOWN_MS);
       if (now - lastTorchPulseAt < cooldownMs) {
         lastTorchReason = `cooldown ${now - lastTorchPulseAt}ms`;
         updateTorchDebugPanel();
@@ -1054,7 +1058,7 @@
       lastTorchPulseAt = now;
       lastTorchReason = `pulse frame ${frameIndex}`;
       updateTorchDebugPanel();
-      pulseTorch(clampNumber(session.torchPulseMs, 40, 800, 180));
+      pulseTorch(clampNumber(session.torchPulseMs, MIN_TORCH_PULSE_MS, 1200, DEFAULT_TORCH_PULSE_MS));
     }
 
     function formatDebugTime(value) {
@@ -1115,6 +1119,7 @@
         `color: ${session.color || '-'}`,
         `sequence: ${session.sequenceName || '-'}`,
         `pulseMs: ${String(session.torchPulseMs ?? '-')}`,
+        `actualPulseMinMs: ${MIN_TORCH_PULSE_MS}`,
         `cooldownMs: ${String(session.torchCooldownMs ?? '-')}`,
         `lastPulse: ${formatDebugTime(lastTorchPulseAt)}`,
         `reason: ${lastTorchReason}`,
@@ -1145,12 +1150,12 @@
 
       if (!torchSyncEnabled) {
         clearTimeout(torchPulseTimer);
-        await setTorch(false);
+        await setTorch(false, { reason: 'manual sync off' });
         lastTorchFrameIndex = -1;
       } else {
         lastTorchFrameIndex = -1;
         lastTorchPulseAt = 0;
-        await pulseTorch(220);
+        await pulseTorch(DEFAULT_TORCH_PULSE_MS);
       }
 
       cameraStatus.textContent = torchSyncEnabled ? 'フラッシュ連動ON' : 'フラッシュ連動OFF';

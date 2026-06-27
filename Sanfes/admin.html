@@ -46,7 +46,7 @@
       <div>
         <p class="page-kicker">運営コントロール</p>
         <h1>管理画面</h1>
-        <p class="version-badge page-version">v0.9.3-torch-stability</p>
+        <p class="version-badge page-version">v0.9.4-torch-diagnostics</p>
         <p class="muted">カラー演出の再生、手動カラー送信、各ページの入退室とログイン状態を確認できます。</p>
       </div>
       <nav class="app-nav account-nav">
@@ -336,8 +336,8 @@
         intensity: 0,
         hasTorchCues: false,
         torchCueActive: false,
-        torchPulseMs: selected?.torchPulseMs || 180,
-        torchCooldownMs: selected?.torchCooldownMs || 140,
+          torchPulseMs: selected?.torchPulseMs || 360,
+          torchCooldownMs: selected?.torchCooldownMs || 180,
         sequenceId: selected?.id || null,
         sequenceName: selected?.name || 'stop'
       });
@@ -391,8 +391,8 @@
           lift: Number(frame.lift || 0),
           hasTorchCues: torchCues.length > 0,
           torchCueActive: isTorchCueActive(torchCues, elapsedSec),
-          torchPulseMs: Number(selected.torchPulseMs || 180),
-          torchCooldownMs: Number(selected.torchCooldownMs || 140),
+          torchPulseMs: Number(selected.torchPulseMs || 360),
+          torchCooldownMs: Number(selected.torchCooldownMs || 180),
           sequenceId: selected.id,
           sequenceName: selected.name,
           frameIndex: currentIndex,
@@ -422,8 +422,8 @@
         intensity: 1,
         hasTorchCues: false,
         torchCueActive: false,
-        torchPulseMs: 180,
-        torchCooldownMs: 140,
+        torchPulseMs: 360,
+        torchCooldownMs: 180,
         sequenceName: 'manual'
       });
 
@@ -440,8 +440,8 @@
         intensity: 0,
         hasTorchCues: false,
         torchCueActive: false,
-        torchPulseMs: 180,
-        torchCooldownMs: 140,
+        torchPulseMs: 360,
+        torchCooldownMs: 180,
         sequenceName: 'blackout'
       });
 

@@ -39,7 +39,7 @@
       <div>
         <p class="page-kicker">カラー制御スタジオ</p>
         <h1>MOVIE COLOR</h1>
-        <p class="version-badge page-version">v0.9.3-torch-stability</p>
+        <p class="version-badge page-version">v0.9.4-torch-diagnostics</p>
         <p class="muted">動画からの色抽出、手動カラー作成、保存済みシーケンスの編集を1画面で管理します。</p>
       </div>
     </header>
@@ -70,8 +70,8 @@
         </div>
 
         <input id="interval" type="hidden" value="0.5" />
-        <input id="torchPulseMs" type="hidden" value="180" />
-        <input id="torchCooldownMs" type="hidden" value="140" />
+        <input id="torchPulseMs" type="hidden" value="360" />
+        <input id="torchCooldownMs" type="hidden" value="180" />
 
         <div class="generation-panel">
           <div class="panel-heading compact-heading">
@@ -332,8 +332,8 @@
 
     const COLOR_EXTRACT_INTERVAL_SECONDS = 0.5;
     const BEAT_ANALYSIS_INTERVAL_SECONDS = 0.2;
-    const DEFAULT_TORCH_PULSE_MS = 180;
-    const DEFAULT_TORCH_COOLDOWN_MS = 140;
+    const DEFAULT_TORCH_PULSE_MS = 360;
+    const DEFAULT_TORCH_COOLDOWN_MS = 180;
 
     let frames = [];
     let generatedDuration = 0;
@@ -858,8 +858,8 @@
         name: sequenceName.value.trim() || 'untitled-sequence',
         interval: Number(sequenceInterval.value || 0.2),
         duration: Number(sequenceDuration.value || (editedFrames.at(-1)?.time || 0)),
-        torchPulseMs: Number(sequenceTorchPulseMs.value || 180),
-        torchCooldownMs: Number(sequenceTorchCooldownMs.value || 140),
+        torchPulseMs: Number(sequenceTorchPulseMs.value || DEFAULT_TORCH_PULSE_MS),
+        torchCooldownMs: Number(sequenceTorchCooldownMs.value || DEFAULT_TORCH_COOLDOWN_MS),
         torchCues: getTorchCuesFromRows(),
         frames: editedFrames
       };
@@ -1011,8 +1011,8 @@
       sequenceName.value = selected.name || '';
       sequenceInterval.value = selected.interval || 0.2;
       sequenceDuration.value = selected.duration || selected.frames?.at(-1)?.time || 0;
-      sequenceTorchPulseMs.value = selected.torchPulseMs || 180;
-      sequenceTorchCooldownMs.value = selected.torchCooldownMs || 140;
+      sequenceTorchPulseMs.value = selected.torchPulseMs || DEFAULT_TORCH_PULSE_MS;
+      sequenceTorchCooldownMs.value = selected.torchCooldownMs || DEFAULT_TORCH_COOLDOWN_MS;
       renderFrames(selected.frames || []);
       renderTorchCues(selected.torchCues || []);
       renderList();
