@@ -46,7 +46,7 @@
       <div>
         <p class="page-kicker">運営コントロール</p>
         <h1>管理画面</h1>
-        <p class="version-badge page-version">v0.9.5-torch-visibility</p>
+        <p class="version-badge page-version">v0.9.6-torch-resync</p>
         <p class="muted">カラー演出の再生、手動カラー送信、各ページの入退室とログイン状態を確認できます。</p>
       </div>
       <nav class="app-nav account-nav">
@@ -181,6 +181,7 @@
     let selected = null;
     let timer = null;
     let dashboardStarted = false;
+    let playbackTickId = 0;
     const MIN_TORCH_PULSE_MS = 650;
     const DEFAULT_TORCH_PULSE_MS = 720;
     const DEFAULT_TORCH_COOLDOWN_MS = 260;
@@ -341,8 +342,9 @@
         torchCueActive: false,
           torchPulseMs: Math.max(Number(selected?.torchPulseMs || DEFAULT_TORCH_PULSE_MS), MIN_TORCH_PULSE_MS),
           torchCooldownMs: Math.max(Number(selected?.torchCooldownMs || DEFAULT_TORCH_COOLDOWN_MS), DEFAULT_TORCH_COOLDOWN_MS),
-        sequenceId: selected?.id || null,
-        sequenceName: selected?.name || 'stop'
+          sequenceId: selected?.id || null,
+          sequenceName: selected?.name || 'stop',
+          tickId: ++playbackTickId
       });
 
       liveState.textContent = '停止中';
@@ -401,7 +403,8 @@
           frameIndex: currentIndex,
           totalFrames,
           elapsedSec,
-          duration: videoDuration
+          duration: videoDuration,
+          tickId: ++playbackTickId
         });
 
         liveState.textContent = `再生中 ${elapsedSec.toFixed(1)}秒 / ${videoDuration.toFixed(1)}秒 / ${frame.color}`;
@@ -427,7 +430,8 @@
         torchCueActive: false,
         torchPulseMs: DEFAULT_TORCH_PULSE_MS,
         torchCooldownMs: DEFAULT_TORCH_COOLDOWN_MS,
-        sequenceName: 'manual'
+        sequenceName: 'manual',
+        tickId: ++playbackTickId
       });
 
       liveState.textContent = `手動送信 ${color}`;
@@ -445,7 +449,8 @@
         torchCueActive: false,
         torchPulseMs: DEFAULT_TORCH_PULSE_MS,
         torchCooldownMs: DEFAULT_TORCH_COOLDOWN_MS,
-        sequenceName: 'blackout'
+        sequenceName: 'blackout',
+        tickId: ++playbackTickId
       });
 
       liveState.textContent = '暗転 #000000';
