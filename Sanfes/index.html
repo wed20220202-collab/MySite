@@ -46,7 +46,7 @@
 
   <div id="mainPanel" class="participant-ui hidden">
     <h1>FESTIVAL COLOR</h1>
-    <p class="version-badge">v0.9.2-sidebar-nav</p>
+    <p class="version-badge">v0.9.3-torch-stability</p>
     <p id="studentIdText">未ログイン</p>
     <p>～この画面で待機してください～</p>
     <p id="uploadStatus">アップロード待機中</p>
@@ -161,6 +161,8 @@
     let torchApplyPromise = Promise.resolve();
     let torchApplyPending = false;
     let torchPulseTimer = null;
+    let torchPulseToken = 0;
+    let torchHoldUntil = 0;
     let lastTorchPulseAt = 0;
     let lastTorchFrameIndex = -1;
     let lastTorchError = 'none';
@@ -901,11 +903,13 @@
         console.warn('torch control failed', error);
         lastTorchError = `${error.name || 'Error'}: ${error.message || ''}`;
         lastTorchReason = 'torch error';
-        torchSupported = false;
-        torchSyncEnabled = false;
-        torchIsOn = false;
-        desiredTorchState = false;
-        updateTorchButton();
+        if (error.name === 'NotSupportedError' || error.name === 'TypeError') {
+          torchSupported = false;
+          torchSyncEnabled = false;
+          torchIsOn = false;
+          desiredTorchState = false;
+          updateTorchButton();
+        }
         updateTorchDebugPanel();
       }
     }
@@ -958,10 +962,24 @@
     }
 
     async function pulseTorch(duration = 180) {
+      const pulseToken = ++torchPulseToken;
+      torchHoldUntil = 0;
       clearTimeout(torchPulseTimer);
       await setTorch(true);
 
       torchPulseTimer = setTimeout(() => {
+        if (pulseToken !== torchPulseToken) {
+          lastTorchReason = 'stale pulse ignored';
+          updateTorchDebugPanel();
+          return;
+        }
+
+        if (Date.now() < torchHoldUntil) {
+          lastTorchReason = 'hold active';
+          updateTorchDebugPanel();
+          return;
+        }
+
         setTorch(false);
       }, duration);
     }
@@ -979,6 +997,8 @@
       const frameIndex = Number(session.frameIndex ?? -1);
 
       if (!session.isPlaying) {
+        torchPulseToken++;
+        torchHoldUntil = 0;
         clearTimeout(torchPulseTimer);
         if (torchIsOn) setTorch(false);
         lastTorchFrameIndex = -1;
@@ -988,16 +1008,19 @@
       }
 
       if (session.hasTorchCues) {
+        torchPulseToken++;
         clearTimeout(torchPulseTimer);
         lastTorchFrameIndex = -1;
 
         if (session.torchCueActive) {
           lastTorchPulseAt = Date.now();
+          torchHoldUntil = Date.now() + 1200;
           lastTorchReason = 'cue active';
           setTorch(true);
         } else {
+          torchHoldUntil = 0;
           lastTorchReason = 'cue inactive';
-          if (torchIsOn) setTorch(false);
+          if (torchIsOn || desiredTorchState) setTorch(false);
         }
 
         updateTorchDebugPanel();
@@ -1080,6 +1103,8 @@
         `torchIsOn: ${torchIsOn}`,
         `desiredTorchState: ${desiredTorchState}`,
         `torchApplyPending: ${torchApplyPending}`,
+        `pulseToken: ${torchPulseToken}`,
+        `holdMs: ${Math.max(0, torchHoldUntil - Date.now())}`,
         `facing: ${currentFacingMode}`,
         `hasTrack: ${Boolean(getVideoTrack())}`,
         `isPlaying: ${Boolean(session.isPlaying)}`,
@@ -1149,6 +1174,7 @@
         });
 
         cameraPreview.srcObject = cameraStream;
+        await cameraPreview.play().catch(() => {});
         await refreshTorchCapability();
         miniCamera.classList.remove('hidden');
         openCameraBtn.classList.add('is-open');
@@ -1166,6 +1192,8 @@
       }
 
       torchSyncEnabled = false;
+      torchPulseToken++;
+      torchHoldUntil = 0;
       clearTimeout(torchPulseTimer);
       if (torchIsOn) setTorch(false);
       lastTorchFrameIndex = -1;
@@ -1178,6 +1206,7 @@
       torchSupported = false;
       torchIsOn = false;
       desiredTorchState = false;
+      torchHoldUntil = 0;
       updateTorchButton();
       cameraPreview.srcObject = null;
       miniCamera.classList.add('hidden');
@@ -1340,6 +1369,8 @@
       torchSupported = false;
       torchIsOn = false;
       desiredTorchState = false;
+      torchPulseToken++;
+      torchHoldUntil = 0;
       lastTorchFrameIndex = -1;
       clearTimeout(torchPulseTimer);
       updateTorchButton();
@@ -1356,6 +1387,7 @@
         });
 
         cameraPreview.srcObject = cameraStream;
+        await cameraPreview.play().catch(() => {});
         await refreshTorchCapability();
         cameraStatus.textContent = currentFacingMode === 'environment' ? '背面カメラ' : '前面カメラ';
       } catch (error) {
