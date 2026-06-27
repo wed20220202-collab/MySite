@@ -46,7 +46,7 @@
 
   <div id="mainPanel" class="participant-ui hidden">
     <h1>FESTIVAL COLOR</h1>
-    <p class="version-badge">v0.9.6-torch-resync</p>
+    <p class="version-badge">v0.9.7-torch-sync-fix</p>
     <p id="studentIdText">未ログイン</p>
     <p>～この画面で待機してください～</p>
     <p id="uploadStatus">アップロード待機中</p>
@@ -315,16 +315,28 @@
       updateTorchDebugPanel();
       if (!session || !session.color) return;
 
-      const color = session.color;
-      stage.style.background = color;
-      document.body.style.background = color;
-      colorText.textContent = color;
+      try {
+        const color = session.color;
+        stage.style.background = color;
+        document.body.style.background = color;
 
-      status.textContent = session.isPlaying
-        ? `受信中: ${session.sequenceName || 'manual'}`
-        : '停止中';
+        if (colorText) {
+          colorText.textContent = color;
+        }
 
-      syncTorchWithSession(session, color);
+        if (status) {
+          status.textContent = session.isPlaying
+            ? `受信中: ${session.sequenceName || 'manual'}`
+            : '停止中';
+        }
+
+        syncTorchWithSession(session, color);
+      } catch (error) {
+        console.error('applyColor failed', error);
+        lastTorchReason = `sync error: ${error.message || error.name || 'unknown'}`;
+        lastTorchError = `${error.name || 'Error'}: ${error.message || ''}`;
+      }
+
       updateTorchDebugPanel();
     }
 
