@@ -9,14 +9,14 @@
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 
-<body class="has-page-sidebar">
-  <aside class="page-sidebar" aria-label="ページ移動">
+<body>
+  <aside id="debugPageSwitcher" class="page-sidebar debug-page-switcher hidden" aria-label="デバッグ用ページ移動" aria-hidden="true" hidden>
     <div class="page-sidebar-brand">
       <span>SANFES</span>
       <small>Navigation</small>
     </div>
     <nav class="page-sidebar-nav">
-      <a class="page-sidebar-link is-current" href="index.html" aria-current="page">
+      <a class="page-sidebar-link is-current" href="index.html?debug=1" aria-current="page">
         <span>Camera</span>
         <small>参加者画面</small>
       </a>
@@ -46,7 +46,7 @@
 
   <div id="mainPanel" class="participant-ui hidden">
     <h1>FESTIVAL COLOR</h1>
-    <p class="version-badge">v0.9.9-light-timeline-beats</p>
+    <p class="version-badge">v0.9.10-debug-switcher</p>
     <p id="studentIdText">未ログイン</p>
     <p>～この画面で待機してください～</p>
     <p id="uploadStatus">アップロード待機中</p>
@@ -136,6 +136,7 @@
     const uploadStatus = document.getElementById('uploadStatus');
     const uploadProgress = document.getElementById('uploadProgress');
     const uploadProgressBar = document.getElementById('uploadProgressBar');
+    const debugPageSwitcher = document.getElementById('debugPageSwitcher');
 
     const openCameraBtn = document.getElementById('openCamera');
     const miniCamera = document.getElementById('miniCamera');
@@ -176,8 +177,17 @@
     let lastTorchReason = 'waiting';
     let lastActiveSession = null;
     let lastSessionReceivedAt = 0;
-    const torchDebugEnabled = new URLSearchParams(location.search).has('debug');
+    const debugParams = new URLSearchParams(location.search);
+    const debugModeEnabled = debugParams.has('debug') && debugParams.get('debug') !== '0';
+    const torchDebugEnabled = debugModeEnabled;
     let torchDebugPanel = null;
+
+    if (debugModeEnabled && debugPageSwitcher) {
+      document.body.classList.add('has-page-sidebar');
+      debugPageSwitcher.hidden = false;
+      debugPageSwitcher.setAttribute('aria-hidden', 'false');
+      debugPageSwitcher.classList.remove('hidden');
+    }
 
     loginBtn.addEventListener('click', async () => {
       loginMessage.textContent = 'ログイン中...';
