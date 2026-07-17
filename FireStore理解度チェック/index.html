@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firestore理解度チェック</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="favicon.ico">
+</head>
+<body class="auth-locked">
+    <section class="login-screen" id="login-screen" aria-labelledby="login-title">
+        <div class="login-card">
+            <p class="eyebrow">Login</p>
+            <h1 id="login-title">Firestore理解度チェック</h1>
+            <p class="login-copy">配布されたIDとパスワードでログインしてください。学習記録はログインIDごとにSpreadsheetへ送信されます。</p>
+            <label for="login-id">ID</label>
+            <input type="text" id="login-id" autocomplete="username" placeholder="例: fs-user-01">
+            <label for="login-pass">Password</label>
+            <input type="password" id="login-pass" autocomplete="current-password" placeholder="password">
+            <div class="login-error hidden" id="login-error">IDまたはパスワードが違います。</div>
+            <button class="primary-btn" id="login-btn">ログイン</button>
+        </div>
+    </section>
+
+    <header class="topbar">
+        <div>
+            <p class="eyebrow">Firestore Learning Demo</p>
+            <h1>Firestore理解度チェック</h1>
+        </div>
+        <div class="top-actions">
+            <div class="user-pill">
+                <span id="current-user-label">未ログイン</span>
+                <button id="logout-btn" type="button">ログアウト</button>
+            </div>
+            <div class="streak-box" aria-label="学習継続日数">
+                <span id="streak-days">0</span>
+                <small>day streak</small>
+            </div>
+        </div>
+    </header>
+
+    <main class="app-shell">
+        <section class="hero-panel" aria-labelledby="today-title">
+            <div class="hero-copy">
+                <p class="date-label" id="today-label">今日の問題</p>
+                <h2 id="today-title">会話で使ったFirestore操作を、毎日少しずつ定着させよう。</h2>
+                <p>
+                    注文データ、KDS、テーブル変更、合算、キャンセル処理など、この制作で出てきたFirestoreの考え方を
+                    短い問題で繰り返し確認できます。
+                </p>
+            </div>
+            <div class="hero-actions">
+                <button class="primary-btn" id="start-daily-btn">今日の10問を始める</button>
+                <button class="ghost-btn" id="start-random-btn">ランダム演習</button>
+            </div>
+        </section>
+
+        <section class="stats-grid" aria-label="学習状況">
+            <div class="stat-tile">
+                <span id="answered-count">0</span>
+                <small>回答数</small>
+            </div>
+            <div class="stat-tile">
+                <span id="accuracy-rate">0%</span>
+                <small>正答率</small>
+            </div>
+            <div class="stat-tile">
+                <span id="mastered-count">0</span>
+                <small>得意問題</small>
+            </div>
+            <div class="stat-tile">
+                <span id="weak-count">0</span>
+                <small>復習候補</small>
+            </div>
+        </section>
+
+        <section class="course-section" aria-label="学習コース">
+            <div class="section-heading">
+                <p class="eyebrow">Learning Courses</p>
+                <h2>学習コースを選ぶ</h2>
+                <p>目的に合わせて問題セットを切り替えられます。迷ったら「今日の必修」から始めてください。</p>
+            </div>
+            <div class="course-grid">
+                <button class="course-card active" data-mode="daily">
+                    <span class="course-badge">日替わり新作</span>
+                    <b>今日の必修</b>
+                    <small>日付ごとに作られる新作バリエーションを含む10問</small>
+                    <em>まずはここ</em>
+                </button>
+                <button class="course-card" data-mode="weak">
+                    <span class="course-badge review">自動復習</span>
+                    <b>復習BOX</b>
+                    <small>間違えた問題だけを自動で集めて再チャレンジ</small>
+                    <em id="review-course-count">0問</em>
+                </button>
+                <button class="course-card" data-mode="all">
+                    <span class="course-badge full">総合</span>
+                    <b>全範囲演習</b>
+                    <small>Firestore操作全体をランダム出題</small>
+                    <em>理解度確認</em>
+                </button>
+                <button class="course-card" data-mode="scenario">
+                    <span class="course-badge applied">応用</span>
+                    <b>実装判断</b>
+                    <small>設計・運用・KDS連携の判断力を鍛える</small>
+                    <em>開発者向け</em>
+                </button>
+            </div>
+        </section>
+
+        <section class="quiz-layout">
+            <article class="quiz-panel" aria-live="polite">
+                <div class="quiz-meta">
+                    <span id="question-number">Q1</span>
+                    <span id="question-category">基本操作</span>
+                </div>
+                <div class="progress-track" aria-label="問題の進行状況">
+                    <div id="quiz-progress-bar"></div>
+                </div>
+                <h2 id="question-text">今日の問題を始めると、ここに問題が表示されます。</h2>
+                <pre id="code-block" class="code-block hidden"></pre>
+                <div id="choices" class="choices"></div>
+                <div id="result-box" class="result-box hidden"></div>
+                <div class="quiz-actions">
+                    <button class="ghost-btn" id="hint-btn">ヒント</button>
+                    <button class="primary-btn" id="next-btn" disabled>次の問題</button>
+                </div>
+            </article>
+
+            <aside class="side-panel">
+                <h2>今日の学習メニュー</h2>
+                <div id="daily-list" class="daily-list"></div>
+                <div class="review-box">
+                    <b>復習BOX</b>
+                    <span id="review-count">0問</span>
+                </div>
+                <button class="wide-btn" id="start-review-btn">間違えた問題を解く</button>
+                <button class="wide-btn" id="reset-today-btn">今日の問題を最初から</button>
+                <button class="wide-btn danger" id="reset-progress-btn">進捗をリセット</button>
+            </aside>
+        </section>
+
+        <section class="review-panel">
+            <div>
+                <h2>Firestore操作の要点</h2>
+                <p>問題で間違えやすいポイントを、実装時の判断に近い形で整理しています。</p>
+            </div>
+            <div class="topic-grid" id="topic-grid"></div>
+        </section>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
