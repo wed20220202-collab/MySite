@@ -1,1 +1,3 @@
 Sanfes/.wrangler/
+~$*.xlsx
+**/~$*.xlsx
