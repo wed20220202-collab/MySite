@@ -86,6 +86,11 @@ function doGet(e) {
     });
   }
 
+  if (action === 'accountUpdate') {
+    const result = updateAccount_(e && e.parameter ? e.parameter : {});
+    return jsonOutput_(result);
+  }
+
   if (action === 'answer') {
     const data = answerDataFromParams_(e && e.parameter ? e.parameter : {});
     if (!isUserAllowedForQuestion_(data.userId, data.questionId)) {
@@ -240,6 +245,62 @@ function getAccountMaster_() {
   }).filter(function(account) {
     return account.id && account.pass && account.enabled;
   });
+}
+
+function updateAccount_(params) {
+  const currentId = normalizeId_(params.currentId);
+  const currentPass = String(params.currentPass || '').trim();
+  const newId = normalizeId_(params.newId);
+  const newPass = String(params.newPass || '').trim();
+  if (!currentId || !currentPass || !newId) {
+    return { ok: false, error: 'missing account fields' };
+  }
+  if (!/^[A-Za-z0-9_-]{3,24}$/.test(newId)) {
+    return { ok: false, error: 'invalid id format' };
+  }
+  if (newPass && !/^[A-Za-z0-9!@#$%^&*_.-]{4,32}$/.test(newPass)) {
+    return { ok: false, error: 'invalid pass format' };
+  }
+
+  const sheet = getSheet_(ACCOUNT_SHEET, ACCOUNT_HEADERS);
+  const rows = getRowsAsObjects_(sheet);
+  let targetRow = null;
+  let targetAccount = null;
+  rows.forEach(function(row, index) {
+    const rowId = normalizeId_(row['ID']);
+    if (rowId.toLowerCase() === currentId.toLowerCase()) {
+      targetRow = index + 2;
+      targetAccount = row;
+    }
+  });
+  if (!targetRow || String(targetAccount['パスワード'] || '').trim() !== currentPass || !isAccountEnabled_(targetAccount['有効'])) {
+    return { ok: false, error: 'account not found' };
+  }
+
+  const duplicated = rows.some(function(row) {
+    const rowId = normalizeId_(row['ID']);
+    return rowId.toLowerCase() === newId.toLowerCase() && rowId.toLowerCase() !== currentId.toLowerCase();
+  });
+  if (duplicated) {
+    return { ok: false, error: 'id already exists' };
+  }
+
+  sheet.getRange(targetRow, 1).setValue(newId);
+  if (newPass) sheet.getRange(targetRow, 2).setValue(newPass);
+
+  return {
+    ok: true,
+    account: {
+      id: newId,
+      pass: newPass || currentPass,
+      name: String(targetAccount['表示名'] || '').trim(),
+      allowedPrefixes: String(targetAccount['回答可能Prefix'] || '')
+        .split(/\s*,\s*|\s*\/\s*|\s+/)
+        .map(function(prefix) { return String(prefix || '').trim(); })
+        .filter(Boolean),
+      enabled: true
+    }
+  };
 }
 
 function getQuestionMaster_() {

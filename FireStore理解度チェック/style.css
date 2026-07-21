@@ -370,6 +370,16 @@ h1 {
     font-size: 16px;
 }
 
+.account-editor {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+}
+
+.account-editor .primary-btn,
+.account-editor span {
+    width: 100%;
+}
+
 .avatar-picker {
     grid-column: 1 / -1;
     border: 1px solid var(--line);

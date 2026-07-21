@@ -398,7 +398,7 @@ const ACCOUNT_CACHE_KEY = "firestoreQuizAccountsCacheV1";
 const QUESTION_CACHE_KEY = "firestoreQuizQuestionsCacheV1";
 // Spreadsheetへ記録したい場合は、Apps ScriptのウェブアプリURLをここに貼り付ける。
 // 空欄のままなら、これまで通りブラウザ内だけに記録する。
-const SPREADSHEET_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxwxrxsnRrwde0iq9jSHQPOum0WBPreQ6D_tck-3toiLf_u6FaTrtP7xyYSXMFnGrw/exec";
+const SPREADSHEET_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbziQ7twF_xfY43ecDPZe05_c1X14KfyQwLQwLX_xd7cozzu548gaYPo5zgpVrdN2Qpweg/exec";
 const QUESTION_FETCH_TIMEOUT_MS = 8000;
 const PROGRESS_FETCH_TIMEOUT_MS = 8000;
 const HISTORY_FETCH_TIMEOUT_MS = 8000;
@@ -1495,6 +1495,11 @@ function formatRankingRate(rate, total) {
 function renderProfile() {
     const input = $("display-name-input");
     if (input) input.value = getDisplayName();
+    const account = getCurrentAccount();
+    const accountIdInput = $("account-id-input");
+    const accountPassInput = $("account-pass-input");
+    if (accountIdInput && account) accountIdInput.value = account.id;
+    if (accountPassInput) accountPassInput.value = "";
     const avatarId = getAvatarId();
     document.querySelectorAll(".avatar-option").forEach(btn => {
         btn.classList.toggle("active", btn.dataset.avatarId === avatarId);
@@ -1532,6 +1537,49 @@ function selectAvatar(avatarId) {
     saveProfileToSpreadsheet(getDisplayName());
     const status = $("profile-save-status");
     if (status) status.textContent = "アイコン保存済み";
+}
+
+async function saveAccountFromInput() {
+    const account = getCurrentAccount();
+    const status = $("account-save-status");
+    if (!account || !SPREADSHEET_WEB_APP_URL) return;
+
+    const newId = $("account-id-input")?.value.trim() || account.id;
+    const newPass = $("account-pass-input")?.value.trim() || "";
+    if (!/^[A-Za-z0-9_-]{3,24}$/.test(newId)) {
+        if (status) status.textContent = "ID形式エラー";
+        return;
+    }
+    if (newPass && !/^[A-Za-z0-9!@#$%^&*_.-]{4,32}$/.test(newPass)) {
+        if (status) status.textContent = "PASS形式エラー";
+        return;
+    }
+
+    if (status) status.textContent = "保存中";
+    try {
+        const url = new URL(SPREADSHEET_WEB_APP_URL);
+        url.searchParams.set("action", "accountUpdate");
+        url.searchParams.set("currentId", account.id);
+        url.searchParams.set("currentPass", account.pass);
+        url.searchParams.set("newId", newId);
+        if (newPass) url.searchParams.set("newPass", newPass);
+        url.searchParams.set("t", Date.now().toString());
+        const response = await fetch(url.toString(), { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        if (!data?.ok || !data.account) throw new Error(data?.error || "account update failed");
+
+        const updatedAccount = normalizeAccount(data.account);
+        authAccounts = authAccounts.map(item => item.id.toLowerCase() === account.id.toLowerCase() ? updatedAccount : item);
+        saveCache(ACCOUNT_CACHE_KEY, authAccounts);
+        localStorage.setItem(AUTH_SESSION_KEY, updatedAccount.id);
+        $("account-pass-input").value = "";
+        updateAuthView();
+        renderProfile();
+        if (status) status.textContent = "保存しました";
+    } catch (error) {
+        if (status) status.textContent = "保存失敗";
+    }
 }
 
 function formatHistoryDate(value) {
@@ -1572,8 +1620,15 @@ $("start-all-side-btn")?.addEventListener("click", () => startQuiz("all"));
 $("refresh-history-btn")?.addEventListener("click", loadAnswerHistoryFromSpreadsheet);
 $("refresh-ranking-btn")?.addEventListener("click", loadRankingFromSpreadsheet);
 $("save-display-name-btn")?.addEventListener("click", saveDisplayNameFromInput);
+$("save-account-btn")?.addEventListener("click", saveAccountFromInput);
 $("display-name-input")?.addEventListener("keydown", event => {
     if (event.key === "Enter") saveDisplayNameFromInput();
+});
+$("account-id-input")?.addEventListener("keydown", event => {
+    if (event.key === "Enter") saveAccountFromInput();
+});
+$("account-pass-input")?.addEventListener("keydown", event => {
+    if (event.key === "Enter") saveAccountFromInput();
 });
 $("category-filter")?.addEventListener("change", renderQuestionBank);
 document.querySelectorAll("[data-nav-view]").forEach(btn => {
