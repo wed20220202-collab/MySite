@@ -1,4 +1,4 @@
-const FALLBACK_QUESTIONS = [
+﻿const FALLBACK_QUESTIONS = [
     {
         id: "add-order",
         category: "基本操作",
@@ -389,34 +389,26 @@ const DAILY_VARIANT_FACTORIES = [
     }
 ];
 
-const TOPICS = [
-    ["追加", "addDocは新規注文のようにIDを自動生成したい場面で使う。"],
-    ["検索", "where、orderBy、limitを組み合わせると、卓番別や最新順の一覧を作れる。"],
-    ["更新", "updateDocは既存注文のtableやitemsだけを変えるときに使う。"],
-    ["削除", "空になった注文や不要な履歴はdeleteDocで消せる。消してよいデータかは要確認。"],
-    ["リアルタイム", "KDSのような画面はonSnapshotで注文変更を監視すると相性がよい。"],
-    ["設計", "配列、サブコレクション、status、guestCountなどは使い方に合わせて選ぶ。"]
-];
-
 const STORAGE_KEY = "firestoreQuizProgressV1";
 const USER_ID_KEY = "firestoreQuizUserIdV1";
 const AUTH_SESSION_KEY = "firestoreQuizLoginV1";
+const DISPLAY_NAME_KEY = "firestoreQuizDisplayNameV1";
+const AVATAR_ID_KEY = "firestoreQuizAvatarIdV1";
+const ACCOUNT_CACHE_KEY = "firestoreQuizAccountsCacheV1";
+const QUESTION_CACHE_KEY = "firestoreQuizQuestionsCacheV1";
 // Spreadsheetへ記録したい場合は、Apps ScriptのウェブアプリURLをここに貼り付ける。
 // 空欄のままなら、これまで通りブラウザ内だけに記録する。
-const SPREADSHEET_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxceF2jQQtWjIvlHpjNo7J_CTbsho1iVsSIKJt2C5PM60B9na9ceU5DyaV4L2ewVr4-uw/exec";
+const SPREADSHEET_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxwxrxsnRrwde0iq9jSHQPOum0WBPreQ6D_tck-3toiLf_u6FaTrtP7xyYSXMFnGrw/exec";
 const QUESTION_FETCH_TIMEOUT_MS = 8000;
-const AUTH_ACCOUNTS = [
-    { id: "user01", pass: "mizu7421", name: "赤池秀斗" },
-    { id: "user02", pass: "sora5386", name: "アンサンヨウ" },
-    { id: "user03", pass: "kumo9147", name: "ブダトキマヘス" },
-    { id: "user04", pass: "nami2068", name: "國谷光星" },
-    { id: "user05", pass: "tsuki6753", name: "矢口颯人" },
-    { id: "user06", pass: "hana8294", name: "藤井蒼太" }
-];
+const PROGRESS_FETCH_TIMEOUT_MS = 8000;
+const HISTORY_FETCH_TIMEOUT_MS = 8000;
+const RANKING_FETCH_TIMEOUT_MS = 8000;
+const FALLBACK_AUTH_ACCOUNTS = [];
+let authAccounts = [];
 const COURSE_INFO = {
     daily: { label: "今日の必修", guide: "日替わり10問でFirestoreの基礎を確認します。" },
     weak: { label: "復習BOX", guide: "間違えた問題だけを集めて復習します。正解するとBOXから外れます。" },
-    all: { label: "全範囲演習", guide: "全カテゴリからランダムに出題します。" },
+    all: { label: "全問演習", guide: "Spreadsheetに登録されている全問題を、1問ずつ最後まで解けます。" },
     scenario: { label: "実装判断", guide: "設計・運用・KDS連携の判断問題を出題します。" }
 };
 let progress = createEmptyProgress();
@@ -424,6 +416,9 @@ let currentMode = "daily";
 let currentSet = [];
 let currentIndex = 0;
 let answeredCurrent = false;
+let answerHistory = [];
+let rankingItems = { FSQ: [], FPQ: [] };
+let activeView = "record";
 
 const $ = (id) => document.getElementById(id);
 
@@ -501,6 +496,86 @@ function normalizeFetchedQuestion(row, index) {
     };
 }
 
+function normalizeAccount(account) {
+    const id = String(account?.id || "").trim();
+    const fallbackPrefixes = id.startsWith("Puser") ? ["FPQ"] : ["FSQ"];
+    const allowedPrefixes = Array.isArray(account?.allowedPrefixes)
+        ? account.allowedPrefixes
+        : String(account?.allowedPrefixes || "").split(/\s*,\s*|\s*\/\s*|\s+/);
+
+    return {
+        id,
+        pass: String(account?.pass || "").trim(),
+        name: String(account?.name || "").trim(),
+        enabled: isAccountEnabled(account?.enabled),
+        allowedPrefixes: allowedPrefixes.map(prefix => String(prefix || "").trim()).filter(Boolean).length
+            ? allowedPrefixes.map(prefix => String(prefix || "").trim()).filter(Boolean)
+            : fallbackPrefixes
+    };
+}
+
+function isAccountEnabled(value) {
+    if (value === false) return false;
+    if (value === true) return true;
+    if (value === null || value === undefined || value === "") return true;
+    const text = String(value).trim().toUpperCase();
+    return !["FALSE", "0", "NO", "OFF", "無効"].includes(text);
+}
+
+function saveCache(key, value) {
+    try {
+        localStorage.setItem(key, JSON.stringify(value));
+    } catch (error) {
+        // Cache is only a speed-up. Ignore storage failures.
+    }
+}
+
+function readCache(key, fallback) {
+    try {
+        return JSON.parse(localStorage.getItem(key) || "null") || fallback;
+    } catch (error) {
+        return fallback;
+    }
+}
+
+function hydrateFastCaches() {
+    const cachedAccounts = readCache(ACCOUNT_CACHE_KEY, []);
+    if (Array.isArray(cachedAccounts) && cachedAccounts.length) {
+        authAccounts = cachedAccounts.map(normalizeAccount).filter(account => account.id && account.pass);
+    }
+
+    const cachedQuestions = readCache(QUESTION_CACHE_KEY, []);
+    if (Array.isArray(cachedQuestions) && cachedQuestions.length) {
+        QUESTIONS = cachedQuestions.map(normalizeFetchedQuestion).filter(Boolean);
+        questionsLoadedFromSpreadsheet = QUESTIONS.length > 0;
+    }
+}
+
+async function loadAccountsFromSpreadsheet() {
+    if (!SPREADSHEET_WEB_APP_URL) {
+        authAccounts = FALLBACK_AUTH_ACCOUNTS.map(normalizeAccount);
+        return false;
+    }
+
+    try {
+        const url = new URL(SPREADSHEET_WEB_APP_URL);
+        url.searchParams.set("action", "accounts");
+        url.searchParams.set("t", Date.now().toString());
+        const response = await fetch(url.toString(), { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const data = await response.json();
+        const fetched = (data.accounts || []).map(normalizeAccount).filter(account => account.id && account.pass && account.enabled);
+        if (!fetched.length) throw new Error("Spreadsheetに有効なアカウントがありません");
+        authAccounts = fetched;
+        saveCache(ACCOUNT_CACHE_KEY, fetched);
+        return true;
+    } catch (error) {
+        if (!authAccounts.length) authAccounts = FALLBACK_AUTH_ACCOUNTS.map(normalizeAccount);
+        return false;
+    }
+}
+
 async function loadQuestionsFromSpreadsheet() {
     if (!SPREADSHEET_WEB_APP_URL) return false;
 
@@ -523,10 +598,114 @@ async function loadQuestionsFromSpreadsheet() {
 
         QUESTIONS = fetched;
         questionsLoadedFromSpreadsheet = true;
+        saveCache(QUESTION_CACHE_KEY, fetched);
         return true;
     } catch (error) {
-        QUESTIONS = [...FALLBACK_QUESTIONS];
-        questionsLoadedFromSpreadsheet = false;
+        if (!QUESTIONS.length) {
+            QUESTIONS = [...FALLBACK_QUESTIONS];
+            questionsLoadedFromSpreadsheet = false;
+        }
+        return false;
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
+function normalizeRemoteProgress(remote) {
+    const safeRemote = remote || {};
+    return {
+        total: Number(safeRemote.total || 0),
+        correct: Number(safeRemote.correct || 0),
+        byQuestion: safeRemote.byQuestion || {},
+        wrongBank: safeRemote.wrongBank || {},
+        dailyDone: progress.dailyDone || {},
+        streak: Number(safeRemote.streak || 0),
+        lastStudyDate: safeRemote.lastStudyDate || progress.lastStudyDate || ""
+    };
+}
+
+async function loadProgressFromSpreadsheet() {
+    const account = getCurrentAccount();
+    if (!SPREADSHEET_WEB_APP_URL || !account) return false;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), PROGRESS_FETCH_TIMEOUT_MS);
+
+    try {
+        const url = new URL(SPREADSHEET_WEB_APP_URL);
+        url.searchParams.set("action", "progress");
+        url.searchParams.set("userId", account.id);
+        url.searchParams.set("t", Date.now().toString());
+
+        const response = await fetch(url.toString(), { signal: controller.signal, cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const data = await response.json();
+        if (!data || data.ok === false || !data.progress) return false;
+
+        const remoteProgress = normalizeRemoteProgress(data.progress);
+        if (remoteProgress.total > 0 || Object.keys(remoteProgress.byQuestion).length > 0) {
+            progress = remoteProgress;
+            saveProgress();
+            updateStats();
+            renderReviewState();
+            renderDailyList();
+            renderQuestionBank();
+        }
+        return true;
+    } catch (error) {
+        return false;
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
+function normalizeHistoryItem(item) {
+    return {
+        recordedAt: item.recordedAt || item.answeredAt || "",
+        date: item.date || "",
+        mode: item.mode || "",
+        questionId: item.questionId || "",
+        category: item.category || "未分類",
+        level: item.level || "",
+        question: item.question || "",
+        selectedAnswer: item.selectedAnswer || "",
+        correctAnswer: item.correctAnswer || "",
+        result: item.result || (item.isCorrect ? "正解" : "不正解")
+    };
+}
+
+async function loadAnswerHistoryFromSpreadsheet() {
+    const account = getCurrentAccount();
+    if (!SPREADSHEET_WEB_APP_URL || !account) {
+        renderAnswerHistory();
+        return false;
+    }
+
+    const status = $("history-status");
+    if (status) status.textContent = "読込中";
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), HISTORY_FETCH_TIMEOUT_MS);
+
+    try {
+        const url = new URL(SPREADSHEET_WEB_APP_URL);
+        url.searchParams.set("action", "history");
+        url.searchParams.set("userId", account.id);
+        url.searchParams.set("limit", "150");
+        url.searchParams.set("t", Date.now().toString());
+
+        const response = await fetch(url.toString(), { signal: controller.signal, cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const data = await response.json();
+        if (!data || data.ok === false || !Array.isArray(data.history)) throw new Error("history unavailable");
+
+        answerHistory = data.history.map(normalizeHistoryItem);
+        renderAnswerHistory();
+        return true;
+    } catch (error) {
+        if (status) status.textContent = "読込失敗";
+        renderAnswerHistory();
         return false;
     } finally {
         clearTimeout(timeout);
@@ -563,9 +742,135 @@ function saveProgress() {
     localStorage.setItem(getProgressStorageKey(), JSON.stringify(progress));
 }
 
+function getDefaultAccountName() {
+    return getCurrentAccount()?.name || "";
+}
+
+function getDisplayNameStorageKey() {
+    const account = getCurrentAccount();
+    return account ? `${DISPLAY_NAME_KEY}:${account.id}` : `${DISPLAY_NAME_KEY}:guest`;
+}
+
+function getAvatarStorageKey() {
+    const account = getCurrentAccount();
+    return account ? `${AVATAR_ID_KEY}:${account.id}` : `${AVATAR_ID_KEY}:guest`;
+}
+
+function getDisplayName() {
+    return localStorage.getItem(getDisplayNameStorageKey()) || getDefaultAccountName();
+}
+
+function getAvatarId() {
+    return localStorage.getItem(getAvatarStorageKey()) || "avatar-1";
+}
+
+function getAvatarImageSrc(avatarId) {
+    const match = String(avatarId || "avatar-1").match(/^avatar-([1-8])$/);
+    const number = match ? match[1].padStart(2, "0") : "01";
+    return `https://api.dicebear.com/10.x/personas/svg?seed=avatar${number}`;
+}
+
+function setDisplayName(name) {
+    const cleanName = String(name || "").trim().slice(0, 24);
+    if (cleanName) {
+        localStorage.setItem(getDisplayNameStorageKey(), cleanName);
+    } else {
+        localStorage.removeItem(getDisplayNameStorageKey());
+    }
+    renderProfile();
+    updateAuthView();
+    return cleanName || getDefaultAccountName();
+}
+
+function setAvatarId(avatarId) {
+    const safeAvatarId = /^avatar-[1-8]$/.test(String(avatarId || "")) ? avatarId : "avatar-1";
+    localStorage.setItem(getAvatarStorageKey(), safeAvatarId);
+    renderProfile();
+    return safeAvatarId;
+}
+
+async function loadProfileFromSpreadsheet() {
+    const account = getCurrentAccount();
+    if (!SPREADSHEET_WEB_APP_URL || !account) return false;
+
+    try {
+        const url = new URL(SPREADSHEET_WEB_APP_URL);
+        url.searchParams.set("action", "profile");
+        url.searchParams.set("userId", account.id);
+        url.searchParams.set("t", Date.now().toString());
+        const response = await fetch(url.toString(), { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        if (data?.ok && data.profile) {
+            if (data.profile.displayName) setDisplayName(data.profile.displayName);
+            if (data.profile.avatarId) setAvatarId(data.profile.avatarId);
+            renderProfile();
+        } else {
+            renderProfile();
+        }
+        return true;
+    } catch (error) {
+        renderProfile();
+        return false;
+    }
+}
+
+async function loadRankingFromSpreadsheet() {
+    if (!SPREADSHEET_WEB_APP_URL) {
+        renderRanking();
+        return false;
+    }
+
+    const status = $("ranking-status");
+    if (status) status.textContent = "読込中";
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), RANKING_FETCH_TIMEOUT_MS);
+
+    try {
+        const results = await Promise.all(getRankingPrefixesForAccount().map(async prefix => {
+            const url = new URL(SPREADSHEET_WEB_APP_URL);
+            url.searchParams.set("action", "ranking");
+            url.searchParams.set("prefix", prefix);
+            url.searchParams.set("limit", "50");
+            url.searchParams.set("t", Date.now().toString());
+            const response = await fetch(url.toString(), { signal: controller.signal, cache: "no-store" });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            if (!data || data.ok === false || !Array.isArray(data.ranking)) throw new Error("ranking unavailable");
+            return [prefix, data.ranking.filter(item => isRankingItemForPrefix(item, prefix))];
+        }));
+        rankingItems = { FSQ: [], FPQ: [], ...Object.fromEntries(results) };
+        renderRanking();
+        return true;
+    } catch (error) {
+        if (status) status.textContent = "読込失敗";
+        renderRanking();
+        return false;
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
+function saveProfileToSpreadsheet(displayName) {
+    const account = getCurrentAccount();
+    if (!SPREADSHEET_WEB_APP_URL || !account) return;
+    fetch(SPREADSHEET_WEB_APP_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({
+            action: "profile",
+            userId: account.id,
+            displayName,
+            avatarId: getAvatarId()
+        })
+    }).catch(() => {});
+}
+
 function getCurrentAccount() {
     const id = localStorage.getItem(AUTH_SESSION_KEY) || "";
-    return AUTH_ACCOUNTS.find(account => account.id === id) || null;
+    const normalizedId = id.toLowerCase();
+    return authAccounts.find(account => account.id.toLowerCase() === normalizedId) || null;
 }
 
 function getUserId() {
@@ -583,7 +888,7 @@ function getUserId() {
 function renderDemoAccounts() {
     const wrap = $("demo-account-list");
     if (!wrap) return;
-    wrap.innerHTML = AUTH_ACCOUNTS.map(account => `
+    wrap.innerHTML = authAccounts.map(account => `
         <div class="account-row">
             <span>${account.id}</span>
             <span>${account.pass}</span>
@@ -596,33 +901,102 @@ function updateAuthView() {
     document.body.classList.toggle("auth-locked", !account);
     const label = $("current-user-label");
     if (label) {
-        label.textContent = account ? `${account.name} / ${account.id}` : "未ログイン";
+        label.textContent = account ? `${getDisplayName()} / ${account.id}` : "未ログイン";
     }
     if (!account) {
         $("login-id")?.focus();
     }
 }
 
-function login() {
-    const id = $("login-id").value.trim();
-    const pass = $("login-pass").value.trim();
-    const account = AUTH_ACCOUNTS.find(item => item.id === id && item.pass === pass);
-    const error = $("login-error");
-
-    if (!account) {
-        error.classList.remove("hidden");
-        return;
+function setLoginLoading(isLoading) {
+    const button = $("login-btn");
+    const idInput = $("login-id");
+    const passInput = $("login-pass");
+    if (button) {
+        button.disabled = isLoading;
+        button.textContent = isLoading ? "ログイン確認中..." : "ログイン";
+        button.classList.toggle("is-loading", isLoading);
     }
+    if (idInput) idInput.disabled = isLoading;
+    if (passInput) passInput.disabled = isLoading;
+}
 
-    localStorage.setItem(AUTH_SESSION_KEY, account.id);
-    progress = loadProgress();
-    currentMode = "daily";
+async function login() {
+    if ($("login-btn")?.disabled) return;
+    const id = $("login-id").value.trim();
+    const normalizedId = id.toLowerCase();
+    const pass = $("login-pass").value.trim();
+    const error = $("login-error");
     error.classList.add("hidden");
-    $("login-pass").value = "";
-    updateAuthView();
-    startQuiz("daily");
-    updateStats();
-    renderReviewState();
+    setLoginLoading(true);
+
+    try {
+        const loaded = await loadAccountsFromSpreadsheet();
+        if (!loaded) {
+            authAccounts = [];
+        }
+        if (!authAccounts.length) {
+            error.textContent = "アカウント情報をSpreadsheetから読み込めませんでした。通信状態を確認してもう一度試してください。";
+            error.classList.remove("hidden");
+            return;
+        }
+        const account = authAccounts.find(item => item.enabled && item.id.toLowerCase() === normalizedId && item.pass === pass);
+
+        if (!account) {
+            error.textContent = "IDまたはパスワードが違います。";
+            error.classList.remove("hidden");
+            return;
+        }
+
+        localStorage.setItem(AUTH_SESSION_KEY, account.id);
+        progress = loadProgress();
+        currentMode = "daily";
+        error.classList.add("hidden");
+        $("login-pass").value = "";
+        updateAuthView();
+        renderProfile();
+        updateStats();
+        renderReviewState();
+        renderCategoryFilter();
+        renderQuestionBank();
+        showView("record");
+        startQuiz("daily");
+        updateStats();
+        renderReviewState();
+        syncAfterLogin();
+    } finally {
+        setLoginLoading(false);
+    }
+}
+
+function syncAfterLogin() {
+    loadProfileFromSpreadsheet().then(() => {
+        updateAuthView();
+        renderProfile();
+    }).catch(() => {});
+    loadProgressFromSpreadsheet().then(() => {
+        updateStats();
+        renderReviewState();
+        renderDailyList();
+        renderQuestionBank();
+    }).catch(() => {});
+    loadAnswerHistoryFromSpreadsheet().catch(() => {});
+}
+
+function refreshCoreDataInBackground() {
+    loadAccountsFromSpreadsheet().then(() => {
+        renderDemoAccounts();
+        updateAuthView();
+        renderCategoryFilter();
+        renderQuestionBank();
+    }).catch(() => {});
+
+    loadQuestionsFromSpreadsheet().then((updated) => {
+        if (!updated) return;
+        renderCategoryFilter();
+        renderQuestionBank();
+        startQuiz(currentMode || "daily");
+    }).catch(() => {});
 }
 
 function logout() {
@@ -632,7 +1006,14 @@ function logout() {
     startQuiz("daily");
     updateStats();
     renderReviewState();
+    answerHistory = [];
+    rankingItems = { FSQ: [], FPQ: [] };
+    renderAnswerHistory();
+    renderRanking();
+    showView("record");
     updateAuthView();
+    renderCategoryFilter();
+    renderQuestionBank();
 }
 
 function sendAnswerToSpreadsheet(question, choiceIndex, isCorrect) {
@@ -640,7 +1021,8 @@ function sendAnswerToSpreadsheet(question, choiceIndex, isCorrect) {
 
     const payload = {
         userId: getUserId(),
-        userName: getCurrentAccount()?.name || "",
+        userName: getDisplayName(),
+        avatarId: getAvatarId(),
         date: todayKey(),
         mode: currentMode,
         questionId: question.id,
@@ -674,11 +1056,51 @@ function sendAnswerToSpreadsheet(question, choiceIndex, isCorrect) {
     });
 }
 
+function getQuestionPrefix(questionId) {
+    const id = String(questionId || "").trim();
+    if (id.startsWith("FSQ")) return "FSQ";
+    if (id.startsWith("FPQ")) return "FPQ";
+    return "";
+}
+
+function getRankingPrefixesForAccount() {
+    const account = getCurrentAccount();
+    const prefixes = account?.allowedPrefixes || ["FSQ"];
+    const filtered = prefixes.filter(prefix => prefix === "FSQ" || prefix === "FPQ");
+    return filtered.length ? filtered : ["FSQ"];
+}
+
+function isRankingUserAllowedForPrefix(userId, prefix) {
+    const id = String(userId || "").trim();
+    if (prefix === "FPQ") return /^Puser\d{2}$/.test(id);
+    if (prefix === "FSQ") return /^user\d{2}$/.test(id);
+    return false;
+}
+
+function isRankingItemForPrefix(item, prefix) {
+    const latestQuestionId = String(item?.latestQuestionId || "").trim();
+    if (latestQuestionId && !latestQuestionId.startsWith(prefix)) return false;
+    return isRankingUserAllowedForPrefix(item?.userId, prefix);
+}
+
+function canAccessQuestion(question) {
+    const prefix = getQuestionPrefix(question?.id);
+    if (!prefix) return true;
+    const account = getCurrentAccount();
+    if (!account) return false;
+    return (account.allowedPrefixes || []).includes(prefix);
+}
+
+function availableQuestions() {
+    return QUESTIONS.filter(canAccessQuestion);
+}
+
 function dailyQuestions() {
     const key = todayKey();
     const generated = questionsLoadedFromSpreadsheet ? [] : generatedDailyQuestions(key);
-    const base = QUESTIONS.filter(q => !generated.some(g => g.category === q.category)).slice(0, 4);
-    const mixed = seededShuffle([...generated, ...base, ...QUESTIONS], dateSeed(key));
+    const allowed = availableQuestions();
+    const base = allowed.filter(q => !generated.some(g => g.category === q.category)).slice(0, 4);
+    const mixed = seededShuffle([...generated, ...base, ...allowed], dateSeed(key));
     const required = [
         mixed.find(q => q.category === "基本操作"),
         mixed.find(q => q.category === "検索"),
@@ -695,7 +1117,7 @@ function weakQuestions() {
 }
 
 function scenarioQuestions() {
-    return QUESTIONS.filter(q => ["設計", "整合性", "KDS", "運用", "UX"].includes(q.category));
+    return availableQuestions().filter(q => ["設計", "整合性", "KDS", "運用", "UX"].includes(q.category));
 }
 
 function buildSet(mode) {
@@ -704,7 +1126,7 @@ function buildSet(mode) {
     if (mode === "weak") return prepareQuestionSet(weakQuestions(), seed + 2000);
     if (mode === "scenario") return prepareQuestionSet(seededShuffle(scenarioQuestions(), seed).slice(0, 10), seed + 3000);
     const generated = questionsLoadedFromSpreadsheet ? [] : generatedDailyQuestions();
-    return prepareQuestionSet(seededShuffle([...QUESTIONS, ...generated], seed).slice(0, 12), seed + 4000);
+    return prepareQuestionSet(seededShuffle([...availableQuestions(), ...generated], seed), seed + 4000);
 }
 
 function startQuiz(mode = currentMode) {
@@ -716,6 +1138,20 @@ function startQuiz(mode = currentMode) {
     renderQuestion();
     renderDailyList();
     renderReviewState();
+}
+
+function startQuestionFromBank(questionId) {
+    const ordered = prepareQuestionSet([...availableQuestions()], Date.now() % 100000);
+    const targetIndex = ordered.findIndex(q => q.id === questionId);
+    currentMode = "all";
+    currentSet = ordered;
+    currentIndex = Math.max(0, targetIndex);
+    answeredCurrent = false;
+    updateModeButtons();
+    renderQuestion();
+    renderDailyList();
+    renderReviewState();
+    document.querySelector(".quiz-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function updateModeButtons() {
@@ -807,8 +1243,14 @@ function renderReviewState() {
 
 function answerQuestion(choiceIndex) {
     if (answeredCurrent) return;
-    answeredCurrent = true;
     const q = currentSet[currentIndex];
+    if (!canAccessQuestion(q)) {
+        $("result-box").className = "result-box bad";
+        $("result-box").innerHTML = "<b>回答できません</b><br>このログインIDでは、この問題IDの問題に回答できません。";
+        $("next-btn").disabled = false;
+        return;
+    }
+    answeredCurrent = true;
     const isCorrect = choiceIndex === q.answer;
 
     progress.total += 1;
@@ -828,6 +1270,19 @@ function answerQuestion(choiceIndex) {
 
     saveProgress();
     sendAnswerToSpreadsheet(q, choiceIndex, isCorrect);
+    answerHistory.unshift({
+        recordedAt: new Date().toISOString(),
+        date: todayKey(),
+        mode: currentMode,
+        questionId: q.id,
+        category: q.category,
+        level: q.level,
+        question: q.question,
+        selectedAnswer: q.choices[choiceIndex],
+        correctAnswer: q.choices[q.answer],
+        result: isCorrect ? "正解" : "不正解"
+    });
+    answerHistory = answerHistory.slice(0, 150);
     document.querySelectorAll(".choice-btn").forEach(btn => {
         const index = Number(btn.dataset.index);
         btn.disabled = true;
@@ -842,6 +1297,8 @@ function answerQuestion(choiceIndex) {
     updateStats();
     renderDailyList();
     renderReviewState();
+    renderQuestionBank();
+    renderAnswerHistory();
 }
 
 function updateStreak(key) {
@@ -862,7 +1319,7 @@ function nextQuestion() {
     }
     const result = $("result-box");
     result.className = "result-box good";
-    result.innerHTML = "<b>今日のセット完了</b><br>おつかれさまです。明日は別の問題セットに切り替わります。弱点復習も試してみましょう。";
+    result.innerHTML = `<b>${COURSE_INFO[currentMode]?.label || "問題セット"} 完了</b><br>おつかれさまです。続けて問題一覧や復習BOXから別の問題にも取り組めます。`;
     $("next-btn").disabled = true;
 }
 
@@ -902,22 +1359,199 @@ function renderDailyList() {
     }).join("");
 }
 
-function renderTopics() {
-    $("topic-grid").innerHTML = TOPICS.map(([title, body]) => (
-        `<div class="topic"><b>${title}</b><span>${body}</span></div>`
-    )).join("");
+function renderCategoryFilter() {
+    const select = $("category-filter");
+    if (!select) return;
+    const currentValue = select.value || "all";
+    const categories = [...new Set(availableQuestions().map(q => q.category || "未分類"))].sort((a, b) => a.localeCompare(b, "ja"));
+    select.innerHTML = [
+        `<option value="all">全カテゴリ</option>`,
+        ...categories.map(category => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`)
+    ].join("");
+    select.value = categories.includes(currentValue) ? currentValue : "all";
+}
+
+function renderQuestionBank() {
+    const list = $("question-bank-list");
+    if (!list) return;
+    const category = $("category-filter")?.value || "all";
+    const filtered = availableQuestions().filter(q => category === "all" || q.category === category);
+    if ($("question-bank-count")) $("question-bank-count").textContent = `${filtered.length}問`;
+
+    list.innerHTML = filtered.map((q, index) => {
+        const record = progress.byQuestion[q.id] || { correct: 0, wrong: 0 };
+        const state = record.correct || record.wrong
+            ? `正${record.correct || 0} / 誤${record.wrong || 0}`
+            : "未回答";
+        return `
+            <button class="question-bank-item" type="button" data-question-id="${escapeHtml(q.id)}">
+                <span class="bank-index">${index + 1}</span>
+                <span class="bank-main">
+                    <b>${escapeHtml(q.category)}：${escapeHtml(q.question)}</b>
+                    <small>${escapeHtml(q.id)} / ${escapeHtml(q.level || "初級")}</small>
+                </span>
+                <em>${state}</em>
+            </button>
+        `;
+    }).join("");
+
+    document.querySelectorAll(".question-bank-item").forEach(btn => {
+        btn.addEventListener("click", () => startQuestionFromBank(btn.dataset.questionId));
+    });
+}
+
+function renderAnswerHistory() {
+    const list = $("history-list");
+    const status = $("history-status");
+    if (!list) return;
+    if (!answerHistory.length) {
+        list.innerHTML = `<div class="empty-state">まだ表示できる回答記録がありません。</div>`;
+        if (status && status.textContent !== "読込中" && status.textContent !== "読込失敗") status.textContent = "0件";
+        return;
+    }
+
+    if (status) status.textContent = `${answerHistory.length}件`;
+    list.innerHTML = answerHistory.map(item => {
+        const good = item.result === "正解";
+        return `
+            <article class="history-item ${good ? "good" : "bad"}">
+                <div class="history-head">
+                    <b>${escapeHtml(item.result)}</b>
+                    <span>${escapeHtml(formatHistoryDate(item.recordedAt || item.answeredAt || item.date))}</span>
+                </div>
+                <p>${escapeHtml(item.question)}</p>
+                <dl>
+                    <div><dt>選択</dt><dd>${escapeHtml(item.selectedAnswer)}</dd></div>
+                    <div><dt>正解</dt><dd>${escapeHtml(item.correctAnswer)}</dd></div>
+                    <div><dt>分類</dt><dd>${escapeHtml(item.category)} / ${escapeHtml(item.level)}</dd></div>
+                </dl>
+            </article>
+        `;
+    }).join("");
+}
+
+function renderRanking() {
+    const fsqList = $("ranking-list");
+    const fpqList = $("ranking-list-fpq");
+    const status = $("ranking-status");
+    if (!fsqList || !fpqList) return;
+
+    const fsqItems = Array.isArray(rankingItems.FSQ) ? rankingItems.FSQ : [];
+    const fpqItems = Array.isArray(rankingItems.FPQ) ? rankingItems.FPQ : [];
+    const visiblePrefixes = getRankingPrefixesForAccount();
+    const fsqGroup = fsqList.closest(".ranking-group");
+    const fpqGroup = fpqList.closest(".ranking-group");
+    if (fsqGroup) fsqGroup.classList.toggle("hidden", !visiblePrefixes.includes("FSQ"));
+    if (fpqGroup) fpqGroup.classList.toggle("hidden", !visiblePrefixes.includes("FPQ"));
+
+    if (visiblePrefixes.includes("FSQ")) renderRankingList(fsqList, fsqItems, "FSQ");
+    if (visiblePrefixes.includes("FPQ")) renderRankingList(fpqList, fpqItems, "FPQ");
+
+    if (status && status.textContent !== "読込失敗") {
+        const visibleCount = visiblePrefixes.reduce((sum, prefix) => sum + (rankingItems[prefix]?.length || 0), 0);
+        status.textContent = `${visibleCount}件`;
+    }
+}
+
+function renderRankingList(list, items, prefix) {
+    if (!items.length) {
+        list.innerHTML = `<div class="empty-state">まだ${escapeHtml(prefix)}の回答ログがありません。</div>`;
+        return;
+    }
+
+    list.innerHTML = items.map((item, index) => {
+        const avatarId = item.avatarId || item.latestAvatarId || "avatar-1";
+        const userName = item.userName || item.latestUserName || item.userId || "User";
+        const todayAccuracy = formatRankingRate(item.todayAccuracy, item.todayTotal);
+        const weekAccuracy = formatRankingRate(item.weekAccuracy, item.weekTotal);
+        const monthAccuracy = formatRankingRate(item.monthAccuracy, item.monthTotal);
+        return `
+        <article class="ranking-item">
+            <div class="rank-face">
+                <span class="rank-no">${index + 1}</span>
+                <img src="${escapeHtml(getAvatarImageSrc(avatarId))}" alt="${escapeHtml(userName)}">
+            </div>
+            <div class="rank-main">
+                <b>${escapeHtml(userName)}</b>
+                <p>${escapeHtml(item.userId || "")}</p>
+                <small>${escapeHtml(prefix)}累計 ${Number(item.total || 0)}問 / 正答率 ${Number(item.accuracy || 0)}%</small>
+                <span class="rank-user">直近 ${escapeHtml(item.latestQuestionId || prefix)} ${escapeHtml(item.latestCategory || "")}</span>
+            </div>
+            <div class="rank-score">
+                <div><span>今日</span><strong>${todayAccuracy}</strong><em>${Number(item.todayTotal || 0)}件</em></div>
+                <div><span>週間</span><strong>${weekAccuracy}</strong><em>${Number(item.weekTotal || 0)}件</em></div>
+                <div><span>月間</span><strong>${monthAccuracy}</strong><em>${Number(item.monthTotal || 0)}件</em></div>
+            </div>
+        </article>
+    `;
+    }).join("");
+}
+
+function formatRankingRate(rate, total) {
+    if (!Number(total || 0)) return "--";
+    return `${Number(rate || 0)}%`;
+}
+
+function renderProfile() {
+    const input = $("display-name-input");
+    if (input) input.value = getDisplayName();
+    const avatarId = getAvatarId();
+    document.querySelectorAll(".avatar-option").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.avatarId === avatarId);
+    });
+}
+
+function showView(viewName) {
+    activeView = viewName || "record";
+    document.querySelectorAll(".view-section").forEach(section => {
+        section.classList.toggle("hidden-view", section.dataset.view !== activeView);
+    });
+    document.querySelectorAll("[data-nav-view]").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.navView === activeView);
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+
+    if (activeView === "record") loadAnswerHistoryFromSpreadsheet();
+    if (activeView === "ranking") loadRankingFromSpreadsheet();
+}
+
+function saveDisplayNameFromInput() {
+    const savedName = setDisplayName($("display-name-input")?.value || "");
+    saveProfileToSpreadsheet(savedName);
+    const status = $("profile-save-status");
+    if (status) {
+        status.textContent = "保存しました";
+        setTimeout(() => {
+            if (status.textContent === "保存しました") status.textContent = "保存済み";
+        }, 1400);
+    }
+}
+
+function selectAvatar(avatarId) {
+    setAvatarId(avatarId);
+    saveProfileToSpreadsheet(getDisplayName());
+    const status = $("profile-save-status");
+    if (status) status.textContent = "アイコン保存済み";
+}
+
+function formatHistoryDate(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function escapeHtml(value) {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 
 function resetToday() {
     progress.dailyDone[todayKey()] = {};
-    saveProgress();
-    startQuiz("daily");
-    updateStats();
-}
-
-function resetProgress() {
-    if (!confirm("学習進捗をリセットします。よろしいですか？")) return;
-    progress = createEmptyProgress();
     saveProgress();
     startQuiz("daily");
     updateStats();
@@ -929,11 +1563,25 @@ document.querySelectorAll(".course-card").forEach(btn => {
 
 $("start-daily-btn").addEventListener("click", () => startQuiz("daily"));
 $("start-random-btn").addEventListener("click", () => startQuiz("all"));
+$("start-all-btn")?.addEventListener("click", () => startQuiz("all"));
 $("hint-btn").addEventListener("click", showHint);
 $("next-btn").addEventListener("click", nextQuestion);
 $("reset-today-btn").addEventListener("click", resetToday);
-$("reset-progress-btn").addEventListener("click", resetProgress);
 $("start-review-btn").addEventListener("click", () => startQuiz("weak"));
+$("start-all-side-btn")?.addEventListener("click", () => startQuiz("all"));
+$("refresh-history-btn")?.addEventListener("click", loadAnswerHistoryFromSpreadsheet);
+$("refresh-ranking-btn")?.addEventListener("click", loadRankingFromSpreadsheet);
+$("save-display-name-btn")?.addEventListener("click", saveDisplayNameFromInput);
+$("display-name-input")?.addEventListener("keydown", event => {
+    if (event.key === "Enter") saveDisplayNameFromInput();
+});
+$("category-filter")?.addEventListener("change", renderQuestionBank);
+document.querySelectorAll("[data-nav-view]").forEach(btn => {
+    btn.addEventListener("click", () => showView(btn.dataset.navView));
+});
+document.querySelectorAll(".avatar-option").forEach(btn => {
+    btn.addEventListener("click", () => selectAvatar(btn.dataset.avatarId));
+});
 $("login-btn").addEventListener("click", login);
 $("logout-btn").addEventListener("click", logout);
 $("login-id").addEventListener("keydown", event => {
@@ -944,21 +1592,28 @@ $("login-pass").addEventListener("keydown", event => {
 });
 
 async function initializeApp() {
-    $("question-number").textContent = "読込中";
-    $("question-category").textContent = "Spreadsheet";
-    $("question-text").textContent = "問題マスタをSpreadsheetから読み込んでいます。";
+    hydrateFastCaches();
+    $("question-number").textContent = "準備中";
+    $("question-category").textContent = "Cache";
+    $("question-text").textContent = "前回のデータで先に表示しています。";
     $("choices").innerHTML = "";
     $("code-block").classList.add("hidden");
     $("next-btn").disabled = true;
 
-    await loadQuestionsFromSpreadsheet();
     progress = getCurrentAccount() ? loadProgress() : createEmptyProgress();
     updateStats();
-    renderTopics();
     renderDemoAccounts();
+    renderCategoryFilter();
+    renderQuestionBank();
+    renderAnswerHistory();
+    renderRanking();
+    renderProfile();
     startQuiz("daily");
     renderReviewState();
     updateAuthView();
+    showView("record");
+    refreshCoreDataInBackground();
+    if (getCurrentAccount()) syncAfterLogin();
 }
 
 initializeApp();

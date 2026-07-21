@@ -14,7 +14,7 @@
             <h1 id="login-title">Firestore理解度チェック</h1>
             <p class="login-copy">配布されたIDとパスワードでログインしてください。学習記録はログインIDごとにSpreadsheetへ送信されます。</p>
             <label for="login-id">ID</label>
-            <input type="text" id="login-id" autocomplete="username" placeholder="例: fs-user-01">
+            <input type="text" id="login-id" autocomplete="username" placeholder="例: user01 / Puser01">
             <label for="login-pass">Password</label>
             <input type="password" id="login-pass" autocomplete="current-password" placeholder="password">
             <div class="login-error hidden" id="login-error">IDまたはパスワードが違います。</div>
@@ -40,7 +40,7 @@
     </header>
 
     <main class="app-shell">
-        <section class="hero-panel" aria-labelledby="today-title">
+        <section class="hero-panel view-section" data-view="mypage" aria-labelledby="today-title">
             <div class="hero-copy">
                 <p class="date-label" id="today-label">今日の問題</p>
                 <h2 id="today-title">会話で使ったFirestore操作を、毎日少しずつ定着させよう。</h2>
@@ -52,10 +52,11 @@
             <div class="hero-actions">
                 <button class="primary-btn" id="start-daily-btn">今日の10問を始める</button>
                 <button class="ghost-btn" id="start-random-btn">ランダム演習</button>
+                <button class="ghost-btn" id="start-all-btn">全問を解く</button>
             </div>
         </section>
 
-        <section class="stats-grid" aria-label="学習状況">
+        <section class="stats-grid view-section" data-view="record" aria-label="学習状況">
             <div class="stat-tile">
                 <span id="answered-count">0</span>
                 <small>回答数</small>
@@ -74,7 +75,58 @@
             </div>
         </section>
 
-        <section class="course-section" aria-label="学習コース">
+        <section class="profile-panel view-section" data-view="mypage" aria-labelledby="profile-title">
+            <div>
+                <p class="eyebrow">My Page</p>
+                <h2 id="profile-title">マイページ</h2>
+                <p>表示名は自分で変更できます。回答ログにも、この名前で記録されます。</p>
+            </div>
+            <div class="profile-editor">
+                <label for="display-name-input">表示名</label>
+                <input id="display-name-input" type="text" maxlength="24" placeholder="表示名を入力">
+                <button class="primary-btn" id="save-display-name-btn" type="button">保存</button>
+                <span id="profile-save-status">未保存</span>
+            </div>
+            <div class="avatar-picker" aria-label="顔アイコン選択">
+                <b>顔アイコン</b>
+                <div class="avatar-grid">
+                    <button type="button" class="avatar-option active" data-avatar-id="avatar-1">
+                        <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar01" alt="アバター1">
+                    </button>
+
+                    <button type="button" class="avatar-option" data-avatar-id="avatar-2">
+                        <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar02" alt="アバター2">
+                    </button>
+
+                    <button type="button" class="avatar-option" data-avatar-id="avatar-3">
+                        <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar03" alt="アバター3">
+                    </button>
+
+                    <button type="button" class="avatar-option" data-avatar-id="avatar-4">
+                        <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar04" alt="アバター4">
+                    </button>
+
+                    <button type="button" class="avatar-option" data-avatar-id="avatar-5">
+                        <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar05" alt="アバター5">
+                    </button>
+
+                    <button type="button" class="avatar-option" data-avatar-id="avatar-6">
+                        <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar06" alt="アバター6">
+                    </button>
+
+                    <button type="button" class="avatar-option" data-avatar-id="avatar-7">
+                        <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar07" alt="アバター7">
+                    </button>
+
+                    <button type="button" class="avatar-option" data-avatar-id="avatar-8">
+                        <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar08" alt="アバター8">
+                    </button>
+                </div>
+                <small>後から用意する画像に差し替えられる8枠です。</small>
+            </div>
+        </section>
+
+        <section class="course-section view-section" data-view="problem" aria-label="学習コース">
             <div class="section-heading">
                 <p class="eyebrow">Learning Courses</p>
                 <h2>学習コースを選ぶ</h2>
@@ -95,9 +147,9 @@
                 </button>
                 <button class="course-card" data-mode="all">
                     <span class="course-badge full">総合</span>
-                    <b>全範囲演習</b>
-                    <small>Firestore操作全体をランダム出題</small>
-                    <em>理解度確認</em>
+                    <b>全問演習</b>
+                    <small>Spreadsheetに登録された問題をすべて解ける</small>
+                    <em>制限なし</em>
                 </button>
                 <button class="course-card" data-mode="scenario">
                     <span class="course-badge applied">応用</span>
@@ -108,7 +160,7 @@
             </div>
         </section>
 
-        <section class="quiz-layout">
+        <section class="quiz-layout view-section" data-view="problem">
             <article class="quiz-panel" aria-live="polite">
                 <div class="quiz-meta">
                     <span id="question-number">Q1</span>
@@ -135,19 +187,86 @@
                     <span id="review-count">0問</span>
                 </div>
                 <button class="wide-btn" id="start-review-btn">間違えた問題を解く</button>
+                <button class="wide-btn" id="start-all-side-btn">全問演習を始める</button>
                 <button class="wide-btn" id="reset-today-btn">今日の問題を最初から</button>
-                <button class="wide-btn danger" id="reset-progress-btn">進捗をリセット</button>
             </aside>
         </section>
 
-        <section class="review-panel">
-            <div>
-                <h2>Firestore操作の要点</h2>
-                <p>問題で間違えやすいポイントを、実装時の判断に近い形で整理しています。</p>
+        <section class="question-bank-panel view-section" data-view="problem" aria-labelledby="question-bank-title">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">Question Bank</p>
+                    <h2 id="question-bank-title">問題一覧から選んで解く</h2>
+                </div>
+                <p>日替わり10問に限らず、Spreadsheetに登録されている全問題をカテゴリ別に選べます。</p>
             </div>
-            <div class="topic-grid" id="topic-grid"></div>
+            <div class="bank-toolbar">
+                <label for="category-filter">カテゴリ</label>
+                <select id="category-filter">
+                    <option value="all">全カテゴリ</option>
+                </select>
+                <span id="question-bank-count">0問</span>
+            </div>
+            <div id="question-bank-list" class="question-bank-list"></div>
         </section>
+
+        <section class="history-panel view-section" data-view="record" aria-labelledby="history-title">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">Answer History</p>
+                    <h2 id="history-title">回答記録</h2>
+                </div>
+                <p>Spreadsheetに保存された回答ログを、ログイン中のユーザーごとに表示します。</p>
+            </div>
+            <div class="history-actions">
+                <button class="wide-btn" id="refresh-history-btn">回答記録を更新</button>
+                <span id="history-status">未読込</span>
+            </div>
+            <div id="history-list" class="history-list"></div>
+        </section>
+
+        <section class="ranking-panel view-section" data-view="ranking" aria-labelledby="ranking-title">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">Ranking</p>
+                    <h2 id="ranking-title">正答率ランキング</h2>
+                </div>
+                <p>ログイン中の問題ジャンルに合わせて、FSQまたはFPQの今日・週間・月間の正答率を集計します。</p>
+            </div>
+            <div class="history-actions">
+                <button class="wide-btn" id="refresh-ranking-btn">ランキングを更新</button>
+                <span id="ranking-status">未読込</span>
+            </div>
+            <div class="ranking-group">
+                <h3>FSQランキング</h3>
+                <div id="ranking-list" class="ranking-list"></div>
+            </div>
+            <div class="ranking-group">
+                <h3>FPQランキング</h3>
+                <div id="ranking-list-fpq" class="ranking-list"></div>
+            </div>
+        </section>
+
     </main>
+
+    <nav class="app-taskbar" aria-label="画面切り替え">
+        <button class="active" type="button" data-nav-view="record">
+            <span class="nav-icon nav-icon-record" aria-hidden="true"></span>
+            <span>記録</span>
+        </button>
+        <button type="button" data-nav-view="problem">
+            <span class="nav-icon nav-icon-problem" aria-hidden="true"></span>
+            <span>問題</span>
+        </button>
+        <button type="button" data-nav-view="ranking">
+            <span class="nav-icon nav-icon-ranking" aria-hidden="true"></span>
+            <span>ランキング</span>
+        </button>
+        <button type="button" data-nav-view="mypage">
+            <span class="nav-icon nav-icon-mypage" aria-hidden="true"></span>
+            <span>マイページ</span>
+        </button>
+    </nav>
 
     <script src="app.js"></script>
 </body>
