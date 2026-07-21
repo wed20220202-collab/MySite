@@ -84,53 +84,50 @@
             <div class="profile-editor">
                 <label for="display-name-input">表示名</label>
                 <input id="display-name-input" type="text" maxlength="24" placeholder="表示名を入力">
-                <button class="primary-btn" id="save-display-name-btn" type="button">保存</button>
-                <span id="profile-save-status">未保存</span>
-            </div>
-            <div class="profile-editor account-editor">
                 <label for="account-id-input">ログインID</label>
                 <input id="account-id-input" type="text" maxlength="24" placeholder="ログインID">
                 <label for="account-pass-input">新しいPASS</label>
                 <input id="account-pass-input" type="password" maxlength="32" placeholder="変更しない場合は空欄">
-                <button class="primary-btn" id="save-account-btn" type="button">ID/PASSを保存</button>
+                <div class="avatar-picker" aria-label="顔アイコン選択">
+                    <b>顔アイコン</b>
+                    <div class="avatar-grid">
+                        <button type="button" class="avatar-option active" data-avatar-id="avatar-1">
+                            <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar01" alt="アバター1">
+                        </button>
+    
+                        <button type="button" class="avatar-option" data-avatar-id="avatar-2">
+                            <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar02" alt="アバター2">
+                        </button>
+    
+                        <button type="button" class="avatar-option" data-avatar-id="avatar-3">
+                            <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar03" alt="アバター3">
+                        </button>
+    
+                        <button type="button" class="avatar-option" data-avatar-id="avatar-4">
+                            <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar04" alt="アバター4">
+                        </button>
+    
+                        <button type="button" class="avatar-option" data-avatar-id="avatar-5">
+                            <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar05" alt="アバター5">
+                        </button>
+    
+                        <button type="button" class="avatar-option" data-avatar-id="avatar-6">
+                            <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar06" alt="アバター6">
+                        </button>
+    
+                        <button type="button" class="avatar-option" data-avatar-id="avatar-7">
+                            <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar07" alt="アバター7">
+                        </button>
+    
+                        <button type="button" class="avatar-option" data-avatar-id="avatar-8">
+                            <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar08" alt="アバター8">
+                        </button>
+                    </div>
+                    <small>後から用意する画像に差し替えられる8枠です。</small>
+                <button class="primary-btn" id="save-account-btn" type="button">プロフィールを保存</button>
+            </div>
                 <span id="account-save-status">未保存</span>
             </div>
-            <div class="avatar-picker" aria-label="顔アイコン選択">
-                <b>顔アイコン</b>
-                <div class="avatar-grid">
-                    <button type="button" class="avatar-option active" data-avatar-id="avatar-1">
-                        <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar01" alt="アバター1">
-                    </button>
-
-                    <button type="button" class="avatar-option" data-avatar-id="avatar-2">
-                        <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar02" alt="アバター2">
-                    </button>
-
-                    <button type="button" class="avatar-option" data-avatar-id="avatar-3">
-                        <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar03" alt="アバター3">
-                    </button>
-
-                    <button type="button" class="avatar-option" data-avatar-id="avatar-4">
-                        <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar04" alt="アバター4">
-                    </button>
-
-                    <button type="button" class="avatar-option" data-avatar-id="avatar-5">
-                        <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar05" alt="アバター5">
-                    </button>
-
-                    <button type="button" class="avatar-option" data-avatar-id="avatar-6">
-                        <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar06" alt="アバター6">
-                    </button>
-
-                    <button type="button" class="avatar-option" data-avatar-id="avatar-7">
-                        <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar07" alt="アバター7">
-                    </button>
-
-                    <button type="button" class="avatar-option" data-avatar-id="avatar-8">
-                        <img src="https://api.dicebear.com/10.x/personas/svg?seed=avatar08" alt="アバター8">
-                    </button>
-                </div>
-                <small>後から用意する画像に差し替えられる8枠です。</small>
             </div>
         </section>
 

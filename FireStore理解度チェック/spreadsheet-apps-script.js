@@ -8,47 +8,28 @@
 
 const ANSWER_SHEET = '回答ログ';
 const QUESTION_SHEET = '問題マスタ';
-const SUMMARY_SHEET = '学習サマリ';
-const PROFILE_SHEET = 'ユーザープロフィール';
 const ACCOUNT_SHEET = 'アカウント管理';
 const ACCOUNT_HEADERS = [
   'ID',
   'パスワード',
   '表示名',
   '回答可能Prefix',
-  '有効'
+  '有効',
+  'アイコンID'
 ];
 const DEFAULT_ACCOUNTS = [
-  ['user01', 'mizu7421', '赤池秀斗', 'FSQ', 'TRUE'],
-  ['user02', 'sora5386', 'アンサンヨウ', 'FSQ', 'TRUE'],
-  ['user03', 'kumo9147', 'ブダトキマヘス', 'FSQ', 'TRUE'],
-  ['user04', 'nami2068', '國谷光星', 'FSQ', 'TRUE'],
-  ['user05', 'tsuki6753', '矢口颯人', 'FSQ', 'TRUE'],
-  ['user06', 'hana8294', '藤井蒼太', 'FSQ', 'TRUE'],
-  ['Puser01', 'pmizu7421', 'P赤池秀斗', 'FPQ', 'TRUE'],
-  ['Puser02', 'psora5386', 'Pアンサンヨウ', 'FPQ', 'TRUE'],
-  ['Puser03', 'pkumo9147', 'Pブダトキマヘス', 'FPQ', 'TRUE'],
-  ['Puser04', 'pnami2068', 'P國谷光星', 'FPQ', 'TRUE'],
-  ['Puser05', 'ptsuki6753', 'P矢口颯人', 'FPQ', 'TRUE'],
-  ['Puser06', 'phana8294', 'P藤井蒼太', 'FPQ', 'TRUE']
-];
-const SUMMARY_HEADERS = [
-  'キー',
-  'ユーザーID',
-  'ユーザー名',
-  '最終学習日',
-  '最終回答日時',
-  '累計回答数',
-  '累計正解数',
-  '正答率',
-  '連続学習日数',
-  '直近モード',
-  '直近カテゴリ',
-  '直近問題ID',
-  '直近結果',
-  '表示名',
-  'アイコンID',
-  'プロフィール更新日時'
+  ['user01', 'mizu7421', '赤池秀斗', 'FSQ', 'TRUE', 'avatar-1'],
+  ['user02', 'sora5386', 'アンサンヨウ', 'FSQ', 'TRUE', 'avatar-1'],
+  ['user03', 'kumo9147', 'ブダトキマヘス', 'FSQ', 'TRUE', 'avatar-1'],
+  ['user04', 'nami2068', '國谷光星', 'FSQ', 'TRUE', 'avatar-1'],
+  ['user05', 'tsuki6753', '矢口颯人', 'FSQ', 'TRUE', 'avatar-1'],
+  ['user06', 'hana8294', '藤井蒼太', 'FSQ', 'TRUE', 'avatar-1'],
+  ['user07', '1111AAAA', 'user07', 'FPQ', 'TRUE', 'avatar-1'],
+  ['user08', '1111AAAA', 'user08', 'FPQ', 'TRUE', 'avatar-1'],
+  ['user09', '1111AAAA', 'user09', 'FPQ', 'TRUE', 'avatar-1'],
+  ['user10', '1111AAAA', 'user10', 'FPQ', 'TRUE', 'avatar-1'],
+  ['user11', '1111AAAA', 'user11', 'FPQ', 'TRUE', 'avatar-1'],
+  ['user12', '1111AAAA', 'user12', 'FPQ', 'TRUE', 'avatar-1']
 ];
 const QUESTION_HEADERS = [
   '問題ID',
@@ -101,7 +82,6 @@ function doGet(e) {
       });
     }
     appendAnswerLog_(data);
-    upsertLearningSummary_(data);
     return jsonOutput_({
       ok: true,
       saved: true,
@@ -160,7 +140,7 @@ function doPost(e) {
   const data = JSON.parse(e.postData.contents || '{}');
 
   if (data.action === 'profile') {
-    upsertUserProfile_(data);
+    updateAccountProfile_(data);
     return ContentService
       .createTextOutput(JSON.stringify({ ok: true }))
       .setMimeType(ContentService.MimeType.JSON);
@@ -174,7 +154,6 @@ function doPost(e) {
 
   appendAnswerLog_(data);
   upsertQuestionMaster_(data);
-  upsertLearningSummary_(data);
 
   return ContentService
     .createTextOutput(JSON.stringify({ ok: true }))
@@ -240,7 +219,8 @@ function getAccountMaster_() {
         .split(/\s*,\s*|\s*\/\s*|\s+/)
         .map(function(prefix) { return String(prefix || '').trim(); })
         .filter(Boolean),
-      enabled: isAccountEnabled_(row['有効'])
+      enabled: isAccountEnabled_(row['有効']),
+      avatarId: sanitizeAvatarId_(row['アイコンID'])
     };
   }).filter(function(account) {
     return account.id && account.pass && account.enabled;
@@ -252,6 +232,8 @@ function updateAccount_(params) {
   const currentPass = String(params.currentPass || '').trim();
   const newId = normalizeId_(params.newId);
   const newPass = String(params.newPass || '').trim();
+  const displayName = String(params.displayName || '').trim().slice(0, 24);
+  const avatarId = sanitizeAvatarId_(params.avatarId);
   if (!currentId || !currentPass || !newId) {
     return { ok: false, error: 'missing account fields' };
   }
@@ -287,18 +269,21 @@ function updateAccount_(params) {
 
   sheet.getRange(targetRow, 1).setValue(newId);
   if (newPass) sheet.getRange(targetRow, 2).setValue(newPass);
+  if (displayName) sheet.getRange(targetRow, 3).setValue(displayName);
+  sheet.getRange(targetRow, 6).setValue(avatarId);
 
   return {
     ok: true,
     account: {
       id: newId,
       pass: newPass || currentPass,
-      name: String(targetAccount['表示名'] || '').trim(),
+      name: displayName || String(targetAccount['表示名'] || '').trim(),
       allowedPrefixes: String(targetAccount['回答可能Prefix'] || '')
         .split(/\s*,\s*|\s*\/\s*|\s+/)
         .map(function(prefix) { return String(prefix || '').trim(); })
         .filter(Boolean),
-      enabled: true
+      enabled: true,
+      avatarId: avatarId
     }
   };
 }
@@ -439,40 +424,6 @@ function upsertQuestionMaster_(data) {
   }
 }
 
-function upsertLearningSummary_(data) {
-  const sheet = getSheet_(SUMMARY_SHEET, SUMMARY_HEADERS);
-
-  const userId = normalizeId_(data.userId);
-  if (!userId) return;
-
-  const currentProfile = getUserProfile_(userId);
-  const row = findRowByValue_(sheet, 1, userId);
-  const values = [
-    userId,
-    userId,
-    data.userName || '',
-    data.date || '',
-    data.answeredAt || '',
-    data.totalAnswered || 0,
-    data.totalCorrect || 0,
-    `${data.accuracy || 0}%`,
-    data.streak || 0,
-    data.mode || '',
-    data.category || '',
-    data.questionId || '',
-    data.isCorrect === true ? '正解' : '不正解',
-    data.userName || currentProfile.displayName || '',
-    sanitizeAvatarId_(data.avatarId || currentProfile.avatarId),
-    currentProfile.updatedAt || ''
-  ];
-
-  if (row) {
-    sheet.getRange(row, 1, 1, values.length).setValues([values]);
-  } else {
-    sheet.appendRow(values);
-  }
-}
-
 function getUserProgress_(userId) {
   if (!userId) {
     return {
@@ -592,120 +543,38 @@ function getUserAnswerHistory_(userId, limit) {
   });
 }
 
-function getUserProfile_(userId) {
-  if (!userId) return { userId: '', displayName: '' };
-  const profileMap = getUserProfileMap_();
-  const foundFromSummary = profileMap[normalizeId_(userId)];
-  if (foundFromSummary) return foundFromSummary;
-
-  const sheet = getSheet_(PROFILE_SHEET, [
-    'ユーザーID',
-    '表示名',
-    'アイコンID',
-    '更新日時'
-  ]);
-  const rows = getRowsAsObjects_(sheet);
-  const found = rows.find(function(row) {
-    return normalizeId_(row['ユーザーID']) === normalizeId_(userId);
-  });
-  return {
-    userId: String(userId),
-    displayName: found ? String(found['表示名'] || '') : '',
-    avatarId: found ? sanitizeAvatarId_(found['アイコンID']) : 'avatar-1',
-    updatedAt: found ? String(found['更新日時'] || '') : ''
-  };
-}
-
-function upsertUserProfile_(data) {
-  const sheet = getSheet_(PROFILE_SHEET, [
-    'ユーザーID',
-    '表示名',
-    'アイコンID',
-    '更新日時'
-  ]);
-  const userId = String(data.userId || '').trim();
-  if (!userId) return;
-  const displayName = String(data.displayName || '').trim().slice(0, 24);
-  const avatarId = sanitizeAvatarId_(data.avatarId);
-  const row = findRowByValue_(sheet, 1, userId);
-  const values = [userId, displayName, avatarId, new Date()];
-  if (row) {
-    sheet.getRange(row, 1, 1, values.length).setValues([values]);
-  } else {
-    sheet.appendRow(values);
-  }
-  upsertSummaryProfile_(userId, displayName, avatarId);
-}
-
-function upsertSummaryProfile_(userId, displayName, avatarId) {
-  const sheet = getSheet_(SUMMARY_SHEET, SUMMARY_HEADERS);
-  const safeUserId = normalizeId_(userId);
-  if (!safeUserId) return;
-
-  const row = findRowByValue_(sheet, 1, safeUserId);
-  const profileValues = [
-    String(displayName || '').trim().slice(0, 24),
-    sanitizeAvatarId_(avatarId),
-    new Date()
-  ];
-
-  if (row) {
-    sheet.getRange(row, 14, 1, profileValues.length).setValues([profileValues]);
-  } else {
-    sheet.appendRow([
-      safeUserId,
-      safeUserId,
-      '',
-      '',
-      '',
-      0,
-      0,
-      '0%',
-      0,
-      '',
-      '',
-      '',
-      '',
-      profileValues[0],
-      profileValues[1],
-      profileValues[2]
-    ]);
-  }
-}
-
 function getUserProfileMap_() {
   const map = {};
-  const summarySheet = getSheet_(SUMMARY_SHEET, SUMMARY_HEADERS);
-  getRowsAsObjects_(summarySheet).forEach(function(row) {
-    const userId = normalizeId_(row['ユーザーID'] || row['キー']);
+  const accountSheet = getSheet_(ACCOUNT_SHEET, ACCOUNT_HEADERS);
+  getRowsAsObjects_(accountSheet).forEach(function(row) {
+    const userId = normalizeId_(row['ID']);
     if (!userId) return;
     map[userId] = {
       userId: userId,
-      displayName: String(row['表示名'] || row['ユーザー名'] || '').trim(),
+      displayName: String(row['表示名'] || '').trim(),
       avatarId: sanitizeAvatarId_(row['アイコンID']),
-      updatedAt: String(row['プロフィール更新日時'] || '')
-    };
-  });
-
-  const profileSheet = getSheet_(PROFILE_SHEET, [
-    'ユーザーID',
-    '表示名',
-    'アイコンID',
-    '更新日時'
-  ]);
-  getRowsAsObjects_(profileSheet).forEach(function(row) {
-    const userId = normalizeId_(row['ユーザーID']);
-    if (!userId) return;
-    const current = map[userId] || {};
-    map[userId] = {
-      userId: userId,
-      displayName: String(row['表示名'] || current.displayName || '').trim(),
-      avatarId: sanitizeAvatarId_(row['アイコンID'] || current.avatarId),
-      updatedAt: String(row['更新日時'] || current.updatedAt || '')
+      updatedAt: ''
     };
   });
 
   return map;
+}
+
+function getUserProfile_(userId) {
+  if (!userId) return { userId: '', displayName: '', avatarId: 'avatar-1' };
+  const profile = getUserProfileMap_()[normalizeId_(userId)];
+  return profile || { userId: String(userId), displayName: '', avatarId: 'avatar-1' };
+}
+
+function updateAccountProfile_(data) {
+  const userId = normalizeId_(data.userId);
+  if (!userId) return;
+  const sheet = getSheet_(ACCOUNT_SHEET, ACCOUNT_HEADERS);
+  const row = findRowByValue_(sheet, 1, userId);
+  if (!row) return;
+  const displayName = String(data.displayName || '').trim().slice(0, 24);
+  if (displayName) sheet.getRange(row, 3).setValue(displayName);
+  sheet.getRange(row, 6).setValue(sanitizeAvatarId_(data.avatarId));
 }
 
 function getUserRanking_(limit, prefix) {

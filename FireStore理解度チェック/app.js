@@ -398,7 +398,7 @@ const ACCOUNT_CACHE_KEY = "firestoreQuizAccountsCacheV1";
 const QUESTION_CACHE_KEY = "firestoreQuizQuestionsCacheV1";
 // Spreadsheetへ記録したい場合は、Apps ScriptのウェブアプリURLをここに貼り付ける。
 // 空欄のままなら、これまで通りブラウザ内だけに記録する。
-const SPREADSHEET_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbziQ7twF_xfY43ecDPZe05_c1X14KfyQwLQwLX_xd7cozzu548gaYPo5zgpVrdN2Qpweg/exec";
+const SPREADSHEET_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwkECJs7b11FjOaVB56MpWYYoc2r6zNSBuHpV9rtbKaXrmLbFJLYyhkgUVlhKntNqg2mw/exec";
 const QUESTION_FETCH_TIMEOUT_MS = 8000;
 const PROGRESS_FETCH_TIMEOUT_MS = 8000;
 const HISTORY_FETCH_TIMEOUT_MS = 8000;
@@ -1520,32 +1520,22 @@ function showView(viewName) {
     if (activeView === "ranking") loadRankingFromSpreadsheet();
 }
 
-function saveDisplayNameFromInput() {
-    const savedName = setDisplayName($("display-name-input")?.value || "");
-    saveProfileToSpreadsheet(savedName);
-    const status = $("profile-save-status");
-    if (status) {
-        status.textContent = "保存しました";
-        setTimeout(() => {
-            if (status.textContent === "保存しました") status.textContent = "保存済み";
-        }, 1400);
-    }
-}
-
 function selectAvatar(avatarId) {
     setAvatarId(avatarId);
-    saveProfileToSpreadsheet(getDisplayName());
     const status = $("profile-save-status");
-    if (status) status.textContent = "アイコン保存済み";
+    if (status) status.textContent = "未保存";
 }
 
 async function saveAccountFromInput() {
     const account = getCurrentAccount();
     const status = $("account-save-status");
+    const profileStatus = $("profile-save-status");
     if (!account || !SPREADSHEET_WEB_APP_URL) return;
 
     const newId = $("account-id-input")?.value.trim() || account.id;
     const newPass = $("account-pass-input")?.value.trim() || "";
+    const displayName = $("display-name-input")?.value.trim() || account.name || account.id;
+    const avatarId = getAvatarId();
     if (!/^[A-Za-z0-9_-]{3,24}$/.test(newId)) {
         if (status) status.textContent = "ID形式エラー";
         return;
@@ -1556,12 +1546,15 @@ async function saveAccountFromInput() {
     }
 
     if (status) status.textContent = "保存中";
+    if (profileStatus) profileStatus.textContent = "保存中";
     try {
         const url = new URL(SPREADSHEET_WEB_APP_URL);
         url.searchParams.set("action", "accountUpdate");
         url.searchParams.set("currentId", account.id);
         url.searchParams.set("currentPass", account.pass);
         url.searchParams.set("newId", newId);
+        url.searchParams.set("displayName", displayName);
+        url.searchParams.set("avatarId", avatarId);
         if (newPass) url.searchParams.set("newPass", newPass);
         url.searchParams.set("t", Date.now().toString());
         const response = await fetch(url.toString(), { cache: "no-store" });
@@ -1573,12 +1566,16 @@ async function saveAccountFromInput() {
         authAccounts = authAccounts.map(item => item.id.toLowerCase() === account.id.toLowerCase() ? updatedAccount : item);
         saveCache(ACCOUNT_CACHE_KEY, authAccounts);
         localStorage.setItem(AUTH_SESSION_KEY, updatedAccount.id);
+        setDisplayName(displayName);
+        setAvatarId(avatarId);
         $("account-pass-input").value = "";
         updateAuthView();
         renderProfile();
         if (status) status.textContent = "保存しました";
+        if (profileStatus) profileStatus.textContent = "保存しました";
     } catch (error) {
         if (status) status.textContent = "保存失敗";
+        if (profileStatus) profileStatus.textContent = "保存失敗";
     }
 }
 
@@ -1619,10 +1616,9 @@ $("start-review-btn").addEventListener("click", () => startQuiz("weak"));
 $("start-all-side-btn")?.addEventListener("click", () => startQuiz("all"));
 $("refresh-history-btn")?.addEventListener("click", loadAnswerHistoryFromSpreadsheet);
 $("refresh-ranking-btn")?.addEventListener("click", loadRankingFromSpreadsheet);
-$("save-display-name-btn")?.addEventListener("click", saveDisplayNameFromInput);
 $("save-account-btn")?.addEventListener("click", saveAccountFromInput);
 $("display-name-input")?.addEventListener("keydown", event => {
-    if (event.key === "Enter") saveDisplayNameFromInput();
+    if (event.key === "Enter") saveAccountFromInput();
 });
 $("account-id-input")?.addEventListener("keydown", event => {
     if (event.key === "Enter") saveAccountFromInput();
