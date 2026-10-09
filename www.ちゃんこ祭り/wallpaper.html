@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#65121b">
+  <meta name="robots" content="noindex,nofollow">
+  <title>壁紙プレゼント｜千駄木ちゃんこ祭り</title>
+  <link rel="stylesheet" href="styles.css?v=5">
+</head>
+<body class="gift-page">
+  <main class="gift-shell gift-shell--wide">
+    <section class="gift-card">
+      <div class="thank-you__icon" aria-hidden="true">✓</div>
+      <p class="gift-card__eyebrow">千駄木ちゃんこ祭り</p>
+      <h1 id="result-title">ご回答ありがとうございました！</h1>
+      <p id="result-message" class="gift-card__message">お礼として、お好きなオリジナル壁紙を1デザインお選びください。</p>
+
+      <div class="gift-divider" aria-hidden="true"><span>壁紙を1デザインプレゼント</span></div>
+
+      <div id="chooser">
+        <section class="selection-step" aria-labelledby="design-title">
+          <p class="step-label">STEP 1</p>
+          <h2 id="design-title">デザインを選ぶ</h2>
+          <div class="design-grid" role="radiogroup" aria-label="壁紙デザイン">
+            <button class="design-card" type="button" data-design="akane" aria-pressed="false">
+              <span class="design-card__preview"><img src="assets/wallpapers/akane-sendagi-iphone.jpg" alt="夕焼けの千駄木の街並み"></span>
+              <strong>茜の千駄木</strong>
+              <small>夕焼けの街並み</small>
+            </button>
+            <button class="design-card" type="button" data-design="soryu" aria-pressed="false">
+              <span class="design-card__preview"><img src="assets/wallpapers/soryu-garden-iphone.jpg" alt="青く照らされた滝と庭園"></span>
+              <strong>蒼流の庭</strong>
+              <small>静謐な滝と水鏡</small>
+            </button>
+            <button class="design-card" type="button" data-design="shuei" aria-pressed="false">
+              <span class="design-card__preview"><img src="assets/wallpapers/shuei-grove-iphone.jpg" alt="夕陽に照らされた朱色の寺社"></span>
+              <strong>朱映の杜</strong>
+              <small>夕陽と朱の社</small>
+            </button>
+          </div>
+        </section>
+
+        <section id="device-step" class="selection-step" aria-labelledby="device-title" hidden>
+          <p class="step-label">STEP 2</p>
+          <h2 id="device-title"><span id="selected-design-name">デザイン</span>のサイズを選ぶ</h2>
+          <p class="size-note">必要なサイズをタップして保存してください。3種類すべて受け取れます。</p>
+          <div class="device-grid" aria-label="壁紙サイズ">
+            <button class="device-card" type="button" data-device="iphone">
+              <span class="device-card__icon" aria-hidden="true">▯</span>
+              <strong>iPhone版を保存</strong>
+              <small>1290 × 2796・縦長</small>
+            </button>
+            <button class="device-card" type="button" data-device="android">
+              <span class="device-card__icon" aria-hidden="true">▯</span>
+              <strong>Android版を保存</strong>
+              <small>1440 × 3200・縦長</small>
+            </button>
+            <button class="device-card" type="button" data-device="pc">
+              <span class="device-card__icon device-card__icon--pc" aria-hidden="true">▭</span>
+              <strong>PC版を保存</strong>
+              <small>2560 × 1440・横長</small>
+            </button>
+          </div>
+          <p class="selection-warning">最初に保存した時点でデザインが確定し、ほかのデザインへは変更できません。</p>
+        </section>
+
+        <div id="gift-message" class="form-message" role="status" aria-live="polite"></div>
+      </div>
+
+      <section id="claimed-gift" class="claimed-gift" hidden>
+        <p class="claimed-gift__badge">デザイン選択済み</p>
+        <h2>選んだ壁紙デザイン</h2>
+        <p id="claimed-summary"></p>
+        <div id="claimed-preview" class="claimed-preview"></div>
+        <p class="size-note">サイズは何種類でも、何度でも保存できます。</p>
+        <div class="size-downloads">
+          <a class="download-button" data-download-device="iphone" href="#" download>iPhone版を保存<small>1290 × 2796</small></a>
+          <a class="download-button" data-download-device="android" href="#" download>Android版を保存<small>1440 × 3200</small></a>
+          <a class="download-button" data-download-device="pc" href="#" download>PC版を保存<small>2560 × 1440</small></a>
+        </div>
+        <p class="save-help">保存できない場合は、画像を長押しして「写真に保存」を選んでください。</p>
+      </section>
+    </section>
+  </main>
+
+  <footer>
+    <p>千駄木二丁目商店街振興組合</p>
+    <p>千駄木ちゃんこ祭り</p>
+  </footer>
+
+  <script src="wallpaper.js?v=5"></script>
+</body>
+</html>

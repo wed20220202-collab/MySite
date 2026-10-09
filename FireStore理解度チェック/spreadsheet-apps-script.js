@@ -29,8 +29,15 @@ const DEFAULT_ACCOUNTS = [
   ['user09', '1111AAAA', 'user09', 'FPQ', 'TRUE', 'avatar-1'],
   ['user10', '1111AAAA', 'user10', 'FPQ', 'TRUE', 'avatar-1'],
   ['user11', '1111AAAA', 'user11', 'FPQ', 'TRUE', 'avatar-1'],
-  ['user12', '1111AAAA', 'user12', 'FPQ', 'TRUE', 'avatar-1']
+  ['user12', '1111AAAA', 'user12', 'FPQ', 'TRUE', 'avatar-1'],
+  ['sql01', '1111AAAA', 'SQLユーザー01', 'SQL', 'TRUE', 'avatar-1'],
+  ['sql02', '1111AAAA', 'SQLユーザー02', 'SQL', 'TRUE', 'avatar-1'],
+  ['sql03', '1111AAAA', 'SQLユーザー03', 'SQL', 'TRUE', 'avatar-1'],
+  ['sql04', '1111AAAA', 'SQLユーザー04', 'SQL', 'TRUE', 'avatar-1'],
+  ['sql05', '1111AAAA', 'SQLユーザー05', 'SQL', 'TRUE', 'avatar-1'],
+  ['sql06', '1111AAAA', 'SQLユーザー06', 'SQL', 'TRUE', 'avatar-1']
 ];
+let ACCOUNT_MASTER_CACHE = null;
 const QUESTION_HEADERS = [
   '問題ID',
   'カテゴリ',
@@ -121,7 +128,7 @@ function doGet(e) {
     return jsonOutput_({
       ok: true,
       ranking: getUserRanking_(limit, prefix),
-      prefix: normalizeQuestionPrefix_(prefix)
+      prefix: normalizeQuestionPrefix_(prefix || 'FSQ') || 'FSQ'
     });
   }
 
@@ -205,19 +212,20 @@ function isAccountEnabled_(value) {
 }
 
 function getAccountMaster_() {
+  if (ACCOUNT_MASTER_CACHE) return ACCOUNT_MASTER_CACHE;
   const sheet = getSheet_(ACCOUNT_SHEET, ACCOUNT_HEADERS);
   if (sheet.getLastRow() < 2) {
     sheet.getRange(2, 1, DEFAULT_ACCOUNTS.length, DEFAULT_ACCOUNTS[0].length).setValues(DEFAULT_ACCOUNTS);
   }
 
-  return getRowsAsObjects_(sheet).map(function(row) {
+  ACCOUNT_MASTER_CACHE = getRowsAsObjects_(sheet).map(function(row) {
     return {
       id: normalizeId_(row['ID']),
       pass: String(row['パスワード'] || '').trim(),
       name: String(row['表示名'] || '').trim(),
       allowedPrefixes: String(row['回答可能Prefix'] || '')
         .split(/\s*,\s*|\s*\/\s*|\s+/)
-        .map(function(prefix) { return String(prefix || '').trim(); })
+        .map(function(prefix) { return normalizeQuestionPrefix_(prefix); })
         .filter(Boolean),
       enabled: isAccountEnabled_(row['有効']),
       avatarId: sanitizeAvatarId_(row['アイコンID'])
@@ -225,6 +233,7 @@ function getAccountMaster_() {
   }).filter(function(account) {
     return account.id && account.pass && account.enabled;
   });
+  return ACCOUNT_MASTER_CACHE;
 }
 
 function updateAccount_(params) {
@@ -280,7 +289,7 @@ function updateAccount_(params) {
       name: displayName || String(targetAccount['表示名'] || '').trim(),
       allowedPrefixes: String(targetAccount['回答可能Prefix'] || '')
         .split(/\s*,\s*|\s*\/\s*|\s+/)
-        .map(function(prefix) { return String(prefix || '').trim(); })
+        .map(function(prefix) { return normalizeQuestionPrefix_(prefix); })
         .filter(Boolean),
       enabled: true,
       avatarId: avatarId
@@ -578,7 +587,7 @@ function updateAccountProfile_(data) {
 }
 
 function getUserRanking_(limit, prefix) {
-  const targetPrefix = normalizeQuestionPrefix_(prefix);
+  const targetPrefix = normalizeQuestionPrefix_(prefix || 'FSQ') || 'FSQ';
   const answerSheet = getSheet_(ANSWER_SHEET, [
     '記録日時',
     'ユーザーID',
@@ -604,7 +613,7 @@ function getUserRanking_(limit, prefix) {
   const map = {};
   rows.forEach(function(row) {
     const questionId = String(row['問題ID'] || '').trim();
-    if (!questionId.startsWith(targetPrefix)) return;
+    if (getQuestionPrefix_(questionId) !== targetPrefix) return;
 
     const userId = normalizeId_(row['ユーザーID']);
     if (!userId) return;
@@ -667,23 +676,34 @@ function getUserRanking_(limit, prefix) {
 }
 
 function normalizeQuestionPrefix_(prefix) {
-  const safePrefix = String(prefix || 'FSQ').trim().toUpperCase();
-  return safePrefix === 'FPQ' ? 'FPQ' : 'FSQ';
+  const safePrefix = String(prefix || '').trim().toUpperCase();
+  return /^[A-Z][A-Z0-9_]{1,9}$/.test(safePrefix) ? safePrefix : '';
+}
+
+function getQuestionPrefix_(questionId) {
+  const id = String(questionId || '').trim().toUpperCase();
+  const match = id.match(/^([A-Z][A-Z0-9_]{1,9})(?:[-_]|$)/);
+  return match ? match[1] : '';
 }
 
 function isRankingUserAllowedForPrefix_(userId, prefix) {
-  const id = normalizeId_(userId);
-  if (prefix === 'FPQ') return /^Puser\d{2}$/.test(id);
-  if (prefix === 'FSQ') return /^user\d{2}$/.test(id);
-  return false;
+  return accountAllowsPrefix_(userId, prefix);
 }
 
 function isUserAllowedForQuestion_(userId, questionId) {
+  const prefix = getQuestionPrefix_(questionId);
+  if (!prefix) return true;
+  return accountAllowsPrefix_(userId, prefix);
+}
+
+function accountAllowsPrefix_(userId, prefix) {
   const id = normalizeId_(userId);
-  const qid = String(questionId || '').trim();
-  if (qid.startsWith('FPQ')) return /^Puser\d{2}$/.test(id);
-  if (qid.startsWith('FSQ')) return /^user\d{2}$/.test(id);
-  return true;
+  const normalizedPrefix = normalizeQuestionPrefix_(prefix);
+  if (!id || !normalizedPrefix) return false;
+  return getAccountMaster_().some(function(account) {
+    return account.id.toLowerCase() === id.toLowerCase()
+      && account.allowedPrefixes.indexOf(normalizedPrefix) !== -1;
+  });
 }
 
 function normalizeStudyDate_(studyDate, answeredAt, recordedAt) {

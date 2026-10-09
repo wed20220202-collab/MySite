@@ -14,7 +14,7 @@
             <h1 id="login-title">Firestore理解度チェック</h1>
             <p class="login-copy">配布されたIDとパスワードでログインしてください。学習記録はログインIDごとにSpreadsheetへ送信されます。</p>
             <label for="login-id">ID</label>
-            <input type="text" id="login-id" autocomplete="username" placeholder="例: user01 / Puser01">
+            <input type="text" id="login-id" autocomplete="username" placeholder="例: user01 / sql01">
             <label for="login-pass">Password</label>
             <input type="password" id="login-pass" autocomplete="current-password" placeholder="password">
             <div class="login-error hidden" id="login-error">IDまたはパスワードが違います。</div>
@@ -236,20 +236,13 @@
                     <p class="eyebrow">Ranking</p>
                     <h2 id="ranking-title">正答率ランキング</h2>
                 </div>
-                <p>ログイン中の問題ジャンルに合わせて、FSQまたはFPQの今日・週間・月間の正答率を集計します。</p>
+                <p>ログイン中の版に合わせて、SQL版・Firestore Database版などの今日・週間・月間の正答率を集計します。</p>
             </div>
             <div class="history-actions">
                 <button class="wide-btn" id="refresh-ranking-btn">ランキングを更新</button>
                 <span id="ranking-status">未読込</span>
             </div>
-            <div class="ranking-group">
-                <h3>FSQランキング</h3>
-                <div id="ranking-list" class="ranking-list"></div>
-            </div>
-            <div class="ranking-group">
-                <h3>FPQランキング</h3>
-                <div id="ranking-list-fpq" class="ranking-list"></div>
-            </div>
+            <div id="ranking-groups"></div>
         </section>
 
     </main>

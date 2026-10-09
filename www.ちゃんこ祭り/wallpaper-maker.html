@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#18151c">
+  <meta name="robots" content="noindex,nofollow">
+  <title>壁紙トリミングツール｜ちゃんこ祭り</title>
+  <link rel="stylesheet" href="wallpaper-maker.css?v=3">
+</head>
+<body>
+  <header class="tool-header">
+    <div>
+      <p class="tool-header__eyebrow">LOCAL WALLPAPER TOOL</p>
+      <h1>壁紙トリミングツール</h1>
+      <p>iPhone・Android・PC版の壁紙を、1枚の写真から作成できます。</p>
+    </div>
+    <span class="local-badge">画像は外部送信されません</span>
+  </header>
+
+  <main class="tool-layout">
+    <aside class="control-panel" aria-label="画像設定">
+      <section class="panel-section">
+        <div class="section-title"><span>1</span><h2>写真を読み込む</h2></div>
+        <label id="drop-zone" class="drop-zone" for="image-input">
+          <strong>画像を選択</strong>
+          <span>または、ここへドラッグ＆ドロップ</span>
+          <small>JPEG・PNG・WebP・GIFに対応</small>
+        </label>
+        <input id="image-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+        <p id="source-info" class="source-info">画像はまだ選択されていません。</p>
+      </section>
+
+      <section class="panel-section">
+        <div class="section-title"><span>2</span><h2>出力サイズ</h2></div>
+        <div class="preset-grid">
+          <button class="preset-button is-active" type="button" data-preset="iphone" data-width="1290" data-height="2796">
+            <strong>iPhone・縦</strong><small>1290 × 2796</small>
+          </button>
+          <button class="preset-button" type="button" data-preset="android" data-width="1440" data-height="3200">
+            <strong>Android・縦</strong><small>1440 × 3200</small>
+          </button>
+          <button class="preset-button" type="button" data-preset="pc" data-width="2560" data-height="1440">
+            <strong>PC・横</strong><small>2560 × 1440</small>
+          </button>
+        </div>
+
+        <div class="dimension-row">
+          <label>幅<input id="output-width" type="number" min="320" max="7680" step="1" value="1290"><span>px</span></label>
+          <button id="swap-size" class="icon-button" type="button" title="縦横を入れ替える" aria-label="縦横を入れ替える">⇄</button>
+          <label>高さ<input id="output-height" type="number" min="320" max="7680" step="1" value="2796"><span>px</span></label>
+        </div>
+        <div class="orientation-control" role="group" aria-label="画像の向き">
+          <span>向き</span>
+          <button id="portrait-button" class="orientation-button is-active" type="button" data-orientation="portrait">▯ 縦向き</button>
+          <button id="landscape-button" class="orientation-button" type="button" data-orientation="landscape">▭ 横向き</button>
+        </div>
+      </section>
+
+      <section class="panel-section">
+        <div class="section-title"><span>3</span><h2>位置と見た目</h2></div>
+
+        <label class="range-control">
+          <span>拡大率 <output id="zoom-value">100%</output></span>
+          <input id="zoom" type="range" min="10" max="400" value="100" step="1">
+        </label>
+        <label class="range-control">
+          <span>明るさ <output id="brightness-value">100%</output></span>
+          <input id="brightness" type="range" min="40" max="160" value="100" step="1">
+        </label>
+        <label class="range-control">
+          <span>コントラスト <output id="contrast-value">100%</output></span>
+          <input id="contrast" type="range" min="40" max="160" value="100" step="1">
+        </label>
+        <label class="range-control">
+          <span>彩度 <output id="saturation-value">100%</output></span>
+          <input id="saturation" type="range" min="0" max="180" value="100" step="1">
+        </label>
+
+        <div class="action-row">
+          <button id="rotate-left" type="button">↶ 左に90°</button>
+          <button id="rotate-right" type="button">↷ 右に90°</button>
+          <button id="reset-edit" type="button">リセット</button>
+        </div>
+        <p class="control-help">プレビュー上の写真をドラッグして位置を調整できます。マウスホイールでも拡大縮小できます。</p>
+      </section>
+
+      <section class="panel-section">
+        <div class="section-title"><span>4</span><h2>ファイルを書き出す</h2></div>
+
+        <div class="export-name-row">
+          <label>デザイン
+            <select id="design-name">
+              <option value="akane">茜の千駄木</option>
+              <option value="soryu">蒼流の庭</option>
+              <option value="shuei">朱映の杜</option>
+            </select>
+          </label>
+          <label>端末・向き
+            <select id="device-name">
+              <option value="iphone">iPhone（縦）</option>
+              <option value="android">Android（縦）</option>
+              <option value="pc">PC（横）</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="select-control">画像形式
+          <select id="file-format">
+            <option value="image/jpeg">JPEG</option>
+            <option value="image/png">PNG</option>
+            <option value="image/webp">WebP</option>
+          </select>
+        </label>
+
+        <label id="quality-control" class="range-control">
+          <span>画質 <output id="quality-value">92%</output></span>
+          <input id="quality" type="range" min="50" max="100" value="92" step="1">
+        </label>
+
+        <p class="filename-preview">出力名：<strong id="filename-preview">akane-sendagi-iphone.jpg</strong></p>
+        <button id="download-button" class="download-button" type="button" disabled>壁紙を書き出す</button>
+        <p id="tool-message" class="tool-message" role="status" aria-live="polite"></p>
+      </section>
+    </aside>
+
+    <section class="preview-panel" aria-label="トリミングプレビュー">
+      <div class="preview-toolbar">
+        <div>
+          <strong>プレビュー</strong>
+          <span id="output-info">1290 × 2796 px</span>
+        </div>
+        <button id="center-image" type="button">中央に戻す</button>
+      </div>
+      <div id="canvas-stage" class="canvas-stage">
+        <canvas id="editor-canvas" width="1290" height="2796" aria-label="壁紙のトリミングプレビュー"></canvas>
+        <div id="empty-state" class="empty-state">
+          <span>＋</span>
+          <strong>写真を読み込んでください</strong>
+          <small>貼り付け（Ctrl+V）にも対応しています</small>
+        </div>
+      </div>
+      <p class="preview-note">スマートフォン版は、時計やアイコンを置く上部に少し余白を残すのがおすすめです。</p>
+    </section>
+  </main>
+
+  <script src="wallpaper-maker.js?v=3"></script>
+</body>
+</html>

@@ -47,6 +47,7 @@ Apps Scriptで `spreadsheet-apps-script.js` を貼り付けたあと、以下で
 ```text
 発行されたURL?action=ranking&prefix=FSQ&limit=30
 発行されたURL?action=ranking&prefix=FPQ&limit=30
+発行されたURL?action=ranking&prefix=SQL&limit=30
 ```
 
 `unknown action` が返る場合は、Apps Scriptの再デプロイがまだ古いままです。
@@ -63,10 +64,12 @@ Apps Scriptで `spreadsheet-apps-script.js` を貼り付けたあと、以下で
 | --- | --- | --- | --- | --- | --- |
 | user01 | mizu7421 | 赤池秀斗 | FSQ | TRUE | avatar-1 |
 | user07 | 1111AAAA | user07 | FPQ | TRUE | avatar-1 |
+| sql01 | 1111AAAA | SQLユーザー01 | SQL | TRUE | avatar-1 |
 
-- `FSQ` は `user01` から `user06` 用です。
-- `FPQ` は `Puser01` から `Puser06` 用です。
-- 複数Prefixを許可する場合は `FSQ,FPQ` のように入力します。
+- `FSQ` / `FPQ` はFirestore Database版の問題に使えます。
+- `SQL` はSQL版の問題に使えます。
+- 問題IDは `FSQ-001`、`FPQ-001`、`SQL-001` のように、先頭のPrefixで版を分けます。
+- 複数Prefixを許可する場合は `FSQ,SQL` のように入力します。
 - `有効` を `FALSE` にすると、そのアカウントではログインできません。
 
 ## 401 Unauthorized が出る場合

@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#8f1f28">
+  <meta name="description" content="千駄木ちゃんこ祭りのアンケートです。">
+  <title>千駄木ちゃんこ祭り アンケート</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="hero">
+    <div class="hero__leaves" aria-hidden="true">🍁</div>
+    <p class="hero__eyebrow">千駄木二丁目商店街振興組合</p>
+    <h1>千駄木<br><span>ちゃんこ祭り</span></h1>
+    <p class="hero__lead">ちゃんこはいかがでしたか？<br>来年のお祭りをもっと楽しくするため、ぜひご感想をお聞かせください。</p>
+    <div class="hero__meta">
+      <span>回答時間 約1分</span>
+      <span>全8問</span>
+    </div>
+  </header>
+
+  <main>
+    <form id="survey-form" method="post" target="submit-frame" novalidate>
+      <input class="honeypot" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+
+      <section class="question" aria-labelledby="q1-title">
+        <div class="question__heading">
+          <span class="question__number">1</span>
+          <h2 id="q1-title">ちゃんこの味はいかがでしたか？</h2>
+          <span class="required">必須</span>
+        </div>
+        <div class="rating-grid">
+          <label class="rating"><input type="radio" name="taste" value="とてもおいしい" required><span class="rating__emoji">😋</span><span>とても<br>おいしい</span></label>
+          <label class="rating"><input type="radio" name="taste" value="おいしい"><span class="rating__emoji">😊</span><span>おいしい</span></label>
+          <label class="rating"><input type="radio" name="taste" value="ふつう"><span class="rating__emoji">🙂</span><span>ふつう</span></label>
+          <label class="rating"><input type="radio" name="taste" value="あまり好みではない"><span class="rating__emoji">🤔</span><span>あまり好み<br>ではない</span></label>
+          <label class="rating"><input type="radio" name="taste" value="好みではない"><span class="rating__emoji">😔</span><span>好みでは<br>ない</span></label>
+        </div>
+      </section>
+
+      <section class="question" aria-labelledby="q2-title">
+        <div class="question__heading">
+          <span class="question__number">2</span>
+          <h2 id="q2-title">量はいかがでしたか？</h2>
+          <span class="required">必須</span>
+        </div>
+        <div class="choice-row">
+          <label class="choice"><input type="radio" name="portion" value="多い" required><span>多い</span></label>
+          <label class="choice"><input type="radio" name="portion" value="ちょうどよい"><span>ちょうどよい</span></label>
+          <label class="choice"><input type="radio" name="portion" value="少ない"><span>少ない</span></label>
+        </div>
+      </section>
+
+      <section class="question" aria-labelledby="q3-title">
+        <div class="question__heading">
+          <span class="question__number">3</span>
+          <h2 id="q3-title">価格（1杯600円）についてどう思いますか？</h2>
+          <span class="required">必須</span>
+        </div>
+        <div class="choice-row">
+          <label class="choice"><input type="radio" name="price" value="安い" required><span>安い</span></label>
+          <label class="choice"><input type="radio" name="price" value="ちょうどよい"><span>ちょうどよい</span></label>
+          <label class="choice"><input type="radio" name="price" value="高い"><span>高い</span></label>
+        </div>
+      </section>
+
+      <section class="question" aria-labelledby="q4-title">
+        <div class="question__heading">
+          <span class="question__number">4</span>
+          <h2 id="q4-title">特においしかったところは？</h2>
+          <span class="optional">複数選択可</span>
+        </div>
+        <div class="check-grid">
+          <label class="check"><input type="checkbox" name="favoriteParts" value="肉・魚介"><span>肉・魚介</span></label>
+          <label class="check"><input type="checkbox" name="favoriteParts" value="野菜"><span>野菜</span></label>
+          <label class="check"><input type="checkbox" name="favoriteParts" value="豆腐・練り物"><span>豆腐・練り物</span></label>
+          <label class="check"><input type="checkbox" name="favoriteParts" value="スープ"><span>スープ</span></label>
+        </div>
+        <label class="text-label" for="favorite-other">その他</label>
+        <input id="favorite-other" class="text-input" type="text" name="favoriteOther" maxlength="80" placeholder="例：きのこ、鶏団子">
+      </section>
+
+      <section class="question" aria-labelledby="q5-title">
+        <div class="question__heading">
+          <span class="question__number">5</span>
+          <h2 id="q5-title">また来年も食べたいですか？</h2>
+          <span class="required">必須</span>
+        </div>
+        <div class="stacked-choices">
+          <label class="choice"><input type="radio" name="returnIntent" value="ぜひ食べたい" required><span>ぜひ食べたい</span></label>
+          <label class="choice"><input type="radio" name="returnIntent" value="できれば食べたい"><span>できれば食べたい</span></label>
+          <label class="choice"><input type="radio" name="returnIntent" value="どちらともいえない"><span>どちらともいえない</span></label>
+          <label class="choice"><input type="radio" name="returnIntent" value="あまり思わない"><span>あまり思わない</span></label>
+        </div>
+      </section>
+
+      <section class="question" aria-labelledby="q6-title">
+        <div class="question__heading">
+          <span class="question__number">6</span>
+          <h2 id="q6-title">ちゃんこ祭りを何で知りましたか？</h2>
+          <span class="required">必須</span>
+        </div>
+        <div class="check-grid">
+          <label class="choice"><input type="radio" name="discovery" value="チラシ・ポスター" required><span>チラシ・ポスター</span></label>
+          <label class="choice"><input type="radio" name="discovery" value="家族・知人"><span>家族・知人</span></label>
+          <label class="choice"><input type="radio" name="discovery" value="商店街"><span>商店街</span></label>
+          <label class="choice"><input type="radio" name="discovery" value="Web・SNS"><span>Web・SNS</span></label>
+          <label class="choice"><input type="radio" name="discovery" value="通りかかって"><span>通りかかって</span></label>
+          <label class="choice"><input type="radio" name="discovery" value="その他"><span>その他</span></label>
+        </div>
+      </section>
+
+      <section class="question" aria-labelledby="q7-title">
+        <div class="question__heading">
+          <span class="question__number">7</span>
+          <h2 id="q7-title">ご意見や、来年食べたい味・具材を教えてください</h2>
+          <span class="optional">任意</span>
+        </div>
+        <textarea name="comments" maxlength="500" rows="5" placeholder="例：味噌味も食べてみたい、もう少し野菜が多いとうれしい"></textarea>
+        <p class="counter"><span id="comment-count">0</span>/500文字</p>
+      </section>
+
+      <section class="question" aria-labelledby="q8-title">
+        <div class="question__heading">
+          <span class="question__number">8</span>
+          <h2 id="q8-title">年代を教えてください</h2>
+          <span class="optional">任意</span>
+        </div>
+        <div class="age-grid">
+          <label class="choice"><input type="radio" name="ageGroup" value="10代以下"><span>10代以下</span></label>
+          <label class="choice"><input type="radio" name="ageGroup" value="20代"><span>20代</span></label>
+          <label class="choice"><input type="radio" name="ageGroup" value="30代"><span>30代</span></label>
+          <label class="choice"><input type="radio" name="ageGroup" value="40代"><span>40代</span></label>
+          <label class="choice"><input type="radio" name="ageGroup" value="50代"><span>50代</span></label>
+          <label class="choice"><input type="radio" name="ageGroup" value="60代"><span>60代</span></label>
+          <label class="choice"><input type="radio" name="ageGroup" value="70代以上"><span>70代以上</span></label>
+        </div>
+      </section>
+
+      <div id="form-message" class="form-message" role="status" aria-live="polite"></div>
+      <button id="submit-button" class="submit-button" type="submit">回答を送信する</button>
+      <p class="privacy-note">氏名・メールアドレスなどの個人情報は収集しません。</p>
+    </form>
+
+  </main>
+
+  <footer>
+    <p>千駄木二丁目商店街振興組合</p>
+    <p>千駄木ちゃんこ祭り</p>
+  </footer>
+
+  <iframe id="submit-frame" name="submit-frame" title="送信処理" hidden></iframe>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -417,7 +417,7 @@ let currentSet = [];
 let currentIndex = 0;
 let answeredCurrent = false;
 let answerHistory = [];
-let rankingItems = { FSQ: [], FPQ: [] };
+let rankingItems = {};
 let activeView = "record";
 
 const $ = (id) => document.getElementById(id);
@@ -498,20 +498,30 @@ function normalizeFetchedQuestion(row, index) {
 
 function normalizeAccount(account) {
     const id = String(account?.id || "").trim();
-    const fallbackPrefixes = id.startsWith("Puser") ? ["FPQ"] : ["FSQ"];
-    const allowedPrefixes = Array.isArray(account?.allowedPrefixes)
-        ? account.allowedPrefixes
-        : String(account?.allowedPrefixes || "").split(/\s*,\s*|\s*\/\s*|\s+/);
+    const fallbackPrefixes = ["FSQ"];
+    const allowedPrefixes = normalizeAllowedPrefixes(account?.allowedPrefixes, fallbackPrefixes);
 
     return {
         id,
         pass: String(account?.pass || "").trim(),
         name: String(account?.name || "").trim(),
         enabled: isAccountEnabled(account?.enabled),
-        allowedPrefixes: allowedPrefixes.map(prefix => String(prefix || "").trim()).filter(Boolean).length
-            ? allowedPrefixes.map(prefix => String(prefix || "").trim()).filter(Boolean)
-            : fallbackPrefixes
+        allowedPrefixes
     };
+}
+
+function normalizePrefix(prefix) {
+    return String(prefix || "").trim().toUpperCase();
+}
+
+function normalizeAllowedPrefixes(value, fallback = ["FSQ"]) {
+    const values = Array.isArray(value)
+        ? value
+        : String(value || "").split(/\s*,\s*|\s*\/\s*|\s+/);
+    const prefixes = [...new Set(values
+        .map(normalizePrefix)
+        .filter(prefix => /^[A-Z][A-Z0-9_]{1,9}$/.test(prefix)))];
+    return prefixes.length ? prefixes : fallback.map(normalizePrefix).filter(Boolean);
 }
 
 function isAccountEnabled(value) {
@@ -839,7 +849,7 @@ async function loadRankingFromSpreadsheet() {
             if (!data || data.ok === false || !Array.isArray(data.ranking)) throw new Error("ranking unavailable");
             return [prefix, data.ranking.filter(item => isRankingItemForPrefix(item, prefix))];
         }));
-        rankingItems = { FSQ: [], FPQ: [], ...Object.fromEntries(results) };
+        rankingItems = Object.fromEntries(results);
         renderRanking();
         return true;
     } catch (error) {
@@ -1007,7 +1017,7 @@ function logout() {
     updateStats();
     renderReviewState();
     answerHistory = [];
-    rankingItems = { FSQ: [], FPQ: [] };
+    rankingItems = {};
     renderAnswerHistory();
     renderRanking();
     showView("record");
@@ -1057,30 +1067,30 @@ function sendAnswerToSpreadsheet(question, choiceIndex, isCorrect) {
 }
 
 function getQuestionPrefix(questionId) {
-    const id = String(questionId || "").trim();
-    if (id.startsWith("FSQ")) return "FSQ";
-    if (id.startsWith("FPQ")) return "FPQ";
-    return "";
+    const id = String(questionId || "").trim().toUpperCase();
+    const match = id.match(/^([A-Z][A-Z0-9_]{1,9})(?:[-_]|$)/);
+    return match ? match[1] : "";
 }
 
 function getRankingPrefixesForAccount() {
     const account = getCurrentAccount();
-    const prefixes = account?.allowedPrefixes || ["FSQ"];
-    const filtered = prefixes.filter(prefix => prefix === "FSQ" || prefix === "FPQ");
-    return filtered.length ? filtered : ["FSQ"];
+    return normalizeAllowedPrefixes(account?.allowedPrefixes, ["FSQ"]);
 }
 
-function isRankingUserAllowedForPrefix(userId, prefix) {
-    const id = String(userId || "").trim();
-    if (prefix === "FPQ") return /^Puser\d{2}$/.test(id);
-    if (prefix === "FSQ") return /^user\d{2}$/.test(id);
-    return false;
+function isAccountAllowedForPrefix(userId, prefix) {
+    const id = String(userId || "").trim().toLowerCase();
+    const normalizedPrefix = normalizePrefix(prefix);
+    if (!id || !normalizedPrefix) return false;
+    const account = authAccounts.find(item => String(item.id || "").trim().toLowerCase() === id);
+    if (!account) return true;
+    return normalizeAllowedPrefixes(account.allowedPrefixes, []).includes(normalizedPrefix);
 }
 
 function isRankingItemForPrefix(item, prefix) {
+    const normalizedPrefix = normalizePrefix(prefix);
     const latestQuestionId = String(item?.latestQuestionId || "").trim();
-    if (latestQuestionId && !latestQuestionId.startsWith(prefix)) return false;
-    return isRankingUserAllowedForPrefix(item?.userId, prefix);
+    if (latestQuestionId && getQuestionPrefix(latestQuestionId) !== normalizedPrefix) return false;
+    return isAccountAllowedForPrefix(item?.userId, normalizedPrefix);
 }
 
 function canAccessQuestion(question) {
@@ -1088,7 +1098,7 @@ function canAccessQuestion(question) {
     if (!prefix) return true;
     const account = getCurrentAccount();
     if (!account) return false;
-    return (account.allowedPrefixes || []).includes(prefix);
+    return normalizeAllowedPrefixes(account.allowedPrefixes, []).includes(prefix);
 }
 
 function availableQuestions() {
@@ -1431,21 +1441,23 @@ function renderAnswerHistory() {
 }
 
 function renderRanking() {
-    const fsqList = $("ranking-list");
-    const fpqList = $("ranking-list-fpq");
+    const groups = $("ranking-groups");
     const status = $("ranking-status");
-    if (!fsqList || !fpqList) return;
+    if (!groups) return;
 
-    const fsqItems = Array.isArray(rankingItems.FSQ) ? rankingItems.FSQ : [];
-    const fpqItems = Array.isArray(rankingItems.FPQ) ? rankingItems.FPQ : [];
     const visiblePrefixes = getRankingPrefixesForAccount();
-    const fsqGroup = fsqList.closest(".ranking-group");
-    const fpqGroup = fpqList.closest(".ranking-group");
-    if (fsqGroup) fsqGroup.classList.toggle("hidden", !visiblePrefixes.includes("FSQ"));
-    if (fpqGroup) fpqGroup.classList.toggle("hidden", !visiblePrefixes.includes("FPQ"));
+    groups.innerHTML = visiblePrefixes.map((prefix, index) => `
+        <div class="ranking-group">
+            <h3>${escapeHtml(prefix)}ランキング</h3>
+            <div class="ranking-list" data-ranking-index="${index}"></div>
+        </div>
+    `).join("");
 
-    if (visiblePrefixes.includes("FSQ")) renderRankingList(fsqList, fsqItems, "FSQ");
-    if (visiblePrefixes.includes("FPQ")) renderRankingList(fpqList, fpqItems, "FPQ");
+    visiblePrefixes.forEach((prefix, index) => {
+        const list = groups.querySelector(`[data-ranking-index="${index}"]`);
+        const items = Array.isArray(rankingItems[prefix]) ? rankingItems[prefix] : [];
+        if (list) renderRankingList(list, items, prefix);
+    });
 
     if (status && status.textContent !== "読込失敗") {
         const visibleCount = visiblePrefixes.reduce((sum, prefix) => sum + (rankingItems[prefix]?.length || 0), 0);
