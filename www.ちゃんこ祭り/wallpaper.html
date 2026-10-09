@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#65121b">
   <meta name="robots" content="noindex,nofollow">
   <title>壁紙プレゼント｜千駄木ちゃんこ祭り</title>
-  <link rel="stylesheet" href="styles.css?v=5">
+  <link rel="stylesheet" href="styles.css?v=6">
 </head>
 <body class="gift-page">
   <main class="gift-shell gift-shell--wide">
@@ -41,30 +41,6 @@
           </div>
         </section>
 
-        <section id="device-step" class="selection-step" aria-labelledby="device-title" hidden>
-          <p class="step-label">STEP 2</p>
-          <h2 id="device-title"><span id="selected-design-name">デザイン</span>のサイズを選ぶ</h2>
-          <p class="size-note">必要なサイズをタップして保存してください。3種類すべて受け取れます。</p>
-          <div class="device-grid" aria-label="壁紙サイズ">
-            <button class="device-card" type="button" data-device="iphone">
-              <span class="device-card__icon" aria-hidden="true">▯</span>
-              <strong>iPhone版を保存</strong>
-              <small>1290 × 2796・縦長</small>
-            </button>
-            <button class="device-card" type="button" data-device="android">
-              <span class="device-card__icon" aria-hidden="true">▯</span>
-              <strong>Android版を保存</strong>
-              <small>1440 × 3200・縦長</small>
-            </button>
-            <button class="device-card" type="button" data-device="pc">
-              <span class="device-card__icon device-card__icon--pc" aria-hidden="true">▭</span>
-              <strong>PC版を保存</strong>
-              <small>2560 × 1440・横長</small>
-            </button>
-          </div>
-          <p class="selection-warning">最初に保存した時点でデザインが確定し、ほかのデザインへは変更できません。</p>
-        </section>
-
         <div id="gift-message" class="form-message" role="status" aria-live="polite"></div>
       </div>
 
@@ -84,11 +60,24 @@
     </section>
   </main>
 
+  <dialog id="design-confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-dialog-title">
+    <form method="dialog" class="confirm-dialog__panel">
+      <p class="confirm-dialog__eyebrow">デザインの確認</p>
+      <h2 id="confirm-dialog-title"><span id="confirm-design-name"></span>で確定しますか？</h2>
+      <div id="confirm-design-preview" class="confirm-dialog__preview"></div>
+      <p>確定後は、ほかのデザインへ変更できません。iPhone・Android・PC版はすべて保存できます。</p>
+      <div class="confirm-dialog__actions">
+        <button id="cancel-design-button" class="dialog-button dialog-button--secondary" type="button">選び直す</button>
+        <button id="confirm-design-button" class="dialog-button dialog-button--primary" type="button">このデザインで確定する</button>
+      </div>
+    </form>
+  </dialog>
+
   <footer>
     <p>千駄木二丁目商店街振興組合</p>
     <p>千駄木ちゃんこ祭り</p>
   </footer>
 
-  <script src="wallpaper.js?v=5"></script>
+  <script src="wallpaper.js?v=6"></script>
 </body>
 </html>

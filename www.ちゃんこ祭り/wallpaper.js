@@ -55,35 +55,48 @@ function initializeGiftChooser() {
     return;
   }
 
-  let selectedDesign = "";
   const designButtons = [...document.querySelectorAll("[data-design]")];
-  const deviceButtons = [...document.querySelectorAll("[data-device]")];
-  const deviceStep = document.querySelector("#device-step");
-  const selectedDesignName = document.querySelector("#selected-design-name");
+  const dialog = document.querySelector("#design-confirm-dialog");
+  const confirmButton = document.querySelector("#confirm-design-button");
+  const cancelButton = document.querySelector("#cancel-design-button");
+  const confirmName = document.querySelector("#confirm-design-name");
+  const confirmPreview = document.querySelector("#confirm-design-preview");
+  let pendingDesign = "";
 
   designButtons.forEach((button) => {
     button.addEventListener("click", () => {
-      selectedDesign = button.dataset.design;
-      setPressed(designButtons, button);
-      selectedDesignName.textContent = DESIGN_LABELS[selectedDesign];
-      deviceStep.hidden = false;
-      deviceStep.scrollIntoView({ behavior: "smooth", block: "center" });
+      pendingDesign = button.dataset.design;
+      confirmName.textContent = DESIGN_LABELS[pendingDesign];
+      confirmPreview.innerHTML = `<img src="${WALLPAPERS[pendingDesign].iphone}" alt="${DESIGN_LABELS[pendingDesign]}のプレビュー">`;
+      openConfirmDialog(dialog);
     });
   });
 
-  deviceButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      if (!selectedDesign) return;
-      const device = button.dataset.device;
-      const choice = { design: selectedDesign };
-      const path = WALLPAPERS[selectedDesign][device];
-
-      saveChoice(choice);
-      triggerDownload(path);
-      showClaimedGift(choice);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    });
+  cancelButton.addEventListener("click", () => {
+    pendingDesign = "";
+    dialog.close();
   });
+
+  confirmButton.addEventListener("click", () => {
+    if (!pendingDesign) return;
+    const choice = { design: pendingDesign };
+    saveChoice(choice);
+    dialog.close();
+    showClaimedGift(choice);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+
+  dialog.addEventListener("cancel", () => {
+    pendingDesign = "";
+  });
+}
+
+function openConfirmDialog(dialog) {
+  if (typeof dialog.showModal === "function") {
+    dialog.showModal();
+    return;
+  }
+  dialog.setAttribute("open", "");
 }
 
 function showClaimedGift(choice) {
@@ -101,23 +114,6 @@ function showClaimedGift(choice) {
     link.href = path;
     link.download = path.split("/").pop();
   });
-}
-
-function setPressed(buttons, selected) {
-  buttons.forEach((button) => {
-    const active = button === selected;
-    button.setAttribute("aria-pressed", String(active));
-    button.classList.toggle("is-selected", active);
-  });
-}
-
-function triggerDownload(path) {
-  const link = document.createElement("a");
-  link.href = path;
-  link.download = path.split("/").pop();
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
 }
 
 function hasAnswered() {
