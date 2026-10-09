@@ -634,6 +634,229 @@ footer p { margin: 2px; }
   .age-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
+/* Motion and playful feedback */
+.motion-enabled .hero__eyebrow,
+.motion-enabled .hero h1,
+.motion-enabled .hero__lead,
+.motion-enabled .hero__meta {
+  opacity: 0;
+  transform: translateY(18px);
+}
+
+.motion-started .hero__eyebrow,
+.motion-started .hero h1,
+.motion-started .hero__lead,
+.motion-started .hero__meta {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity .7s ease, transform .7s cubic-bezier(.2,.75,.25,1);
+}
+
+.motion-started .hero h1 { transition-delay: .1s; }
+.motion-started .hero__lead { transition-delay: .22s; }
+.motion-started .hero__meta { transition-delay: .34s; }
+
+.motion-started .hero__leaves {
+  animation: hero-leaf-float 3.8s ease-in-out infinite;
+}
+
+.motion-enabled .question,
+.motion-enabled .gift-card,
+.motion-enabled footer {
+  opacity: 0;
+  transform: translateY(28px) scale(.985);
+}
+
+.motion-enabled .question.is-revealed,
+.motion-enabled .gift-card.is-revealed,
+.motion-enabled footer.is-revealed {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition: opacity .62s ease var(--reveal-delay, 0ms), transform .62s cubic-bezier(.2,.75,.25,1) var(--reveal-delay, 0ms);
+}
+
+.question {
+  transition: border-color .3s, box-shadow .3s;
+}
+
+.question.is-answered {
+  border-color: rgba(215, 164, 59, .72);
+  box-shadow: 0 13px 34px rgba(83, 42, 20, .15), 0 0 0 3px rgba(215, 164, 59, .08);
+}
+
+.question.is-answered .question__number {
+  animation: number-pop .5s cubic-bezier(.2,.9,.25,1.35);
+  background: linear-gradient(135deg, var(--orange), var(--red));
+}
+
+.rating.is-popping .rating__emoji,
+.choice.is-popping > span,
+.check.is-popping > span {
+  animation: choice-pop .48s cubic-bezier(.2,.9,.25,1.35);
+}
+
+.rating:hover .rating__emoji { transform: translateY(-3px) rotate(-4deg) scale(1.08); }
+.rating__emoji { transition: transform .2s ease; }
+
+.submit-button,
+.download-button {
+  position: relative;
+  overflow: hidden;
+  transition: transform .2s ease, filter .2s ease, box-shadow .2s ease;
+}
+
+.submit-button::after,
+.download-button::after {
+  content: "";
+  position: absolute;
+  inset: -40% auto -40% -35%;
+  width: 22%;
+  transform: rotate(18deg);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.42), transparent);
+  animation: button-shine 4.8s ease-in-out infinite;
+}
+
+.submit-button:hover,
+.download-button:hover { transform: translateY(-2px); }
+.submit-button:active,
+.download-button:active { transform: translateY(1px) scale(.99); }
+
+.design-card__preview img { transition: transform .45s cubic-bezier(.2,.75,.25,1), filter .3s; }
+.design-card:hover .design-card__preview img { transform: scale(1.055); filter: saturate(1.08); }
+
+.confirm-dialog[open] { animation: dialog-in .28s cubic-bezier(.2,.8,.25,1.15); }
+.confirm-dialog[open]::backdrop { animation: backdrop-in .25s ease both; }
+
+.autumn-motion {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.autumn-motion span {
+  position: absolute;
+  top: -45px;
+  left: var(--leaf-x);
+  color: var(--gold);
+  font-size: var(--leaf-size);
+  opacity: .28;
+  filter: saturate(.85);
+  animation: leaf-fall var(--leaf-duration) linear infinite;
+  animation-delay: var(--leaf-delay);
+}
+
+.autumn-motion span:nth-child(4n) {
+  width: 8px;
+  height: 8px;
+  color: transparent;
+  border-radius: 2px 7px 2px 7px;
+  background: var(--orange);
+}
+
+.survey-progress {
+  position: fixed;
+  z-index: 30;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: rgba(255,255,255,.65);
+  box-shadow: 0 1px 5px rgba(70, 20, 20, .12);
+}
+
+.survey-progress__bar {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold), var(--orange), var(--red));
+  transition: width .45s cubic-bezier(.2,.75,.25,1);
+}
+
+.survey-progress__label {
+  position: absolute;
+  top: 9px;
+  right: 10px;
+  padding: 3px 9px;
+  color: #fff;
+  background: rgba(101,18,27,.88);
+  border-radius: 999px;
+  font-size: .66rem;
+  font-weight: 800;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity .2s, transform .2s, background .2s;
+}
+
+.survey-progress:hover .survey-progress__label,
+.survey-progress.is-complete .survey-progress__label {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.survey-progress.is-complete .survey-progress__label { background: #34704c; }
+
+@keyframes hero-leaf-float {
+  0%, 100% { transform: rotate(18deg) translateY(0); }
+  50% { transform: rotate(9deg) translateY(8px); }
+}
+
+@keyframes leaf-fall {
+  0% { transform: translate3d(0, -7vh, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: .28; }
+  86% { opacity: .2; }
+  100% { transform: translate3d(var(--leaf-drift), 108vh, 0) rotate(540deg); opacity: 0; }
+}
+
+@keyframes number-pop {
+  0%, 100% { transform: scale(1); }
+  45% { transform: scale(1.22) rotate(-7deg); }
+}
+
+@keyframes choice-pop {
+  0% { transform: scale(1); }
+  46% { transform: translateY(-3px) scale(1.055); }
+  100% { transform: translateY(-1px) scale(1); }
+}
+
+@keyframes button-shine {
+  0%, 68% { left: -35%; opacity: 0; }
+  73% { opacity: 1; }
+  91%, 100% { left: 118%; opacity: 0; }
+}
+
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(16px) scale(.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+  .motion-enabled .hero__eyebrow,
+  .motion-enabled .hero h1,
+  .motion-enabled .hero__lead,
+  .motion-enabled .hero__meta,
+  .motion-enabled .question,
+  .motion-enabled .gift-card,
+  .motion-enabled footer {
+    opacity: 1;
+    transform: none;
+  }
+  .autumn-motion { display: none; }
+}
+
 @media (max-width: 420px) {
   main { width: min(100% - 18px, 760px); }
   .question { padding: 19px 16px; border-radius: 15px; }
