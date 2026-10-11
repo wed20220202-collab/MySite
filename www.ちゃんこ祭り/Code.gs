@@ -5,7 +5,7 @@ const HEADERS = [
   '味',
   '量',
   '価格',
-  'おいしかったところ',
+  '味付けの濃さ',
   'また来年も食べたい',
   '知ったきっかけ',
   '意見・来年食べたい味や具材',
@@ -29,7 +29,7 @@ function doPost(e) {
       return response_('ok');
     }
 
-    const required = ['taste', 'portion', 'price', 'returnIntent', 'discovery'];
+    const required = ['taste', 'portion', 'price', 'seasoning', 'returnIntent', 'discovery'];
     if (required.some((key) => !clean_(e.parameter[key], 80))) {
       return response_('invalid');
     }
@@ -40,18 +40,12 @@ function doPost(e) {
       const sheet = getResponseSheet_();
       ensureHeaders_(sheet);
 
-      const favorites = (e.parameters.favoriteParts || [])
-        .map((value) => clean_(value, 80))
-        .filter(Boolean);
-      const other = clean_(e.parameter.favoriteOther, 80);
-      if (other) favorites.push(`その他：${other}`);
-
       sheet.appendRow([
         new Date(),
         clean_(e.parameter.taste, 80),
         clean_(e.parameter.portion, 80),
         clean_(e.parameter.price, 80),
-        favorites.join('、'),
+        clean_(e.parameter.seasoning, 80),
         clean_(e.parameter.returnIntent, 80),
         clean_(e.parameter.discovery, 80),
         clean_(e.parameter.comments, 500),
@@ -77,7 +71,7 @@ function getResponseSheet_() {
 
 function ensureHeaders_(sheet) {
   const existing = sheet.getRange(1, 1, 1, HEADERS.length).getDisplayValues()[0];
-  if (existing.every((value) => value === '')) {
+  if (existing.some((value, index) => value !== HEADERS[index])) {
     const range = sheet.getRange(1, 1, 1, HEADERS.length);
     range.setValues([HEADERS]);
     range.setFontWeight('bold');

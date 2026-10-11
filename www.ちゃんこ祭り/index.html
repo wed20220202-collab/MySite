@@ -68,17 +68,14 @@
       <section class="question" aria-labelledby="q4-title">
         <div class="question__heading">
           <span class="question__number">4</span>
-          <h2 id="q4-title">特においしかったところは？</h2>
-          <span class="optional">複数選択可</span>
+          <h2 id="q4-title">ちゃんこの味付けの濃さはいかがでしたか？</h2>
+          <span class="required">必須</span>
         </div>
-        <div class="check-grid">
-          <label class="check"><input type="checkbox" name="favoriteParts" value="肉・魚介"><span>肉・魚介</span></label>
-          <label class="check"><input type="checkbox" name="favoriteParts" value="野菜"><span>野菜</span></label>
-          <label class="check"><input type="checkbox" name="favoriteParts" value="豆腐・練り物"><span>豆腐・練り物</span></label>
-          <label class="check"><input type="checkbox" name="favoriteParts" value="スープ"><span>スープ</span></label>
+        <div class="choice-row">
+          <label class="choice"><input type="radio" name="seasoning" value="濃い" required><span>濃い</span></label>
+          <label class="choice"><input type="radio" name="seasoning" value="ちょうどよい"><span>ちょうどよい</span></label>
+          <label class="choice"><input type="radio" name="seasoning" value="薄い"><span>薄い</span></label>
         </div>
-        <label class="text-label" for="favorite-other">その他</label>
-        <input id="favorite-other" class="text-input" type="text" name="favoriteOther" maxlength="80" placeholder="例：きのこ、鶏団子">
       </section>
 
       <section class="question" aria-labelledby="q5-title">
@@ -152,6 +149,6 @@
 
   <iframe id="submit-frame" name="submit-frame" title="送信処理" hidden></iframe>
   <script src="app.js"></script>
-  <script src="motion.js?v=1"></script>
+  <script src="motion.js?v=2"></script>
 </body>
 </html>

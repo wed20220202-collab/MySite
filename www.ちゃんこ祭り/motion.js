@@ -71,7 +71,7 @@ function initializeChoiceAnimations() {
 }
 
 function initializeSurveyProgress() {
-  const requiredNames = ["taste", "portion", "price", "returnIntent", "discovery"];
+  const requiredNames = ["taste", "portion", "price", "seasoning", "returnIntent", "discovery"];
   const progress = document.createElement("div");
   progress.className = "survey-progress";
   progress.setAttribute("aria-hidden", "true");
