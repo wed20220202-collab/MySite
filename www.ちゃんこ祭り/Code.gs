@@ -429,3 +429,80 @@ function response_(status) {
     .createTextOutput(status)
     .setMimeType(ContentService.MimeType.TEXT);
 }
+
+function lookupCouponForMerchant(sessionToken, input) {
+  requireAdmin_(sessionToken);
+  if (!normalizeCouponToken_(input) && !normalizeCouponId_(input)) {
+    return { ok: false, status: 'INVALID', message: 'QRコードまたはクーポンIDを確認してください。' };
+  }
+  const record = findCouponForMerchant_(input);
+  if (record && record.duplicate) {
+    return { ok: false, status: 'INVALID', message: '同じIDのクーポンが複数あります。管理者に確認してください。' };
+  }
+  if (!record) return { ok: false, status: 'NOT_FOUND', message: '登録されていないクーポンです。' };
+  return couponPublicResult_(record);
+}
+
+function redeemCouponByMerchant(sessionToken, input, storeName) {
+  requireAdmin_(sessionToken);
+  if (!normalizeCouponToken_(input) && !normalizeCouponId_(input)) {
+    return { ok: false, status: 'INVALID', message: 'QRコードまたはクーポンIDを確認してください。' };
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const record = findCouponForMerchant_(input);
+    if (record && record.duplicate) {
+      return { ok: false, status: 'INVALID', message: '同じIDのクーポンが複数あります。管理者に確認してください。' };
+    }
+    if (!record) return { ok: false, status: 'NOT_FOUND', message: '登録されていないクーポンです。' };
+    const current = couponPublicResult_(record);
+    if (!current.ok) return current;
+
+    const redeemedAt = new Date();
+    record.sheet.getRange(record.row, 4, 1, 5).setValues([[
+      '使用済み',
+      record.values[4],
+      record.values[5],
+      redeemedAt,
+      clean_(storeName, 80) || '店舗名未入力'
+    ]]);
+    SpreadsheetApp.flush();
+    CacheService.getScriptCache().put('admin:' + sessionToken, '1', ADMIN_SESSION_SECONDS);
+    return {
+      ok: true,
+      status: 'USED',
+      message: current.amount + '円引きを適用しました。',
+      couponId: current.couponId,
+      amount: current.amount,
+      redeemedAt: formatDate_(redeemedAt, 'Asia/Tokyo')
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function normalizeCouponId_(value) {
+  const text = clean_(value, 80).toUpperCase();
+  return /^SNDG-\d{8}-[A-F0-9]{8}$/.test(text) ? text : '';
+}
+
+function findCouponForMerchant_(input) {
+  const token = normalizeCouponToken_(input);
+  if (token) return findCouponByHash_(sha256_(token));
+  const couponId = normalizeCouponId_(input);
+  if (!couponId) return null;
+  const sheet = getCouponSheet_();
+  ensureCouponHeaders_(sheet);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return null;
+  const matches = sheet.getRange(2, 1, lastRow - 1, 1)
+    .createTextFinder(couponId)
+    .matchEntireCell(true)
+    .findAll();
+  if (matches.length > 1) return { duplicate: true };
+  if (!matches.length) return null;
+  const row = matches[0].getRow();
+  return { sheet: sheet, row: row, values: sheet.getRange(row, 1, 1, COUPON_HEADERS.length).getValues()[0] };
+}

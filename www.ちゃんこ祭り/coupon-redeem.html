@@ -6,14 +6,91 @@
   <meta name="robots" content="noindex,nofollow,noarchive">
   <meta name="theme-color" content="#4a1118">
   <title>千駄木ちゃんこ祭り クーポン確認</title>
-  <style>html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#f8ead0}iframe{width:100%;height:100%;border:0}</style>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    *{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;background:#f8ead0;font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",sans-serif;color:#2d2520}
+    [hidden]{display:none!important}iframe{display:block;width:100%;height:100%;border:0}
+    button{font:inherit;cursor:pointer;border:0;border-radius:999px;padding:13px 19px;font-weight:800}
+    #scanAgain{position:fixed;right:14px;bottom:18px;z-index:5;color:#fff;background:#4a1118;box-shadow:0 8px 24px #4a111844}
+    #cameraPanel{position:fixed;inset:0;z-index:10;overflow:auto;display:grid;place-items:center;padding:18px;background:linear-gradient(140deg,#f7e4c2,#fffdf8)}
+    .panel{width:min(620px,100%);padding:22px;background:#fff;border:1px solid #eadbc2;border-radius:24px;box-shadow:0 18px 60px #4a111822;text-align:center}
+    h1{font-family:serif;color:#4a1118;font-size:clamp(26px,7vw,40px);margin:4px 0 10px}p{line-height:1.6}
+    #camera{width:100%;max-width:520px;margin:15px auto;border-radius:16px;overflow:hidden}
+    #camera video{width:100%!important;border-radius:16px}
+    .primary{color:#fff;background:#8f1f28}.secondary{color:#4a1118;background:#f1e5d2}.actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px}
+    #cameraError{min-height:1.5em;color:#b42318;font-weight:800}
+    .hint{font-size:13px;color:#756b63}
+  </style>
 </head>
 <body>
   <iframe id="couponApp" title="千駄木ちゃんこ祭り クーポン確認" allow="camera"></iframe>
+  <button id="scanAgain" type="button" hidden>カメラで読み取る</button>
+  <section id="cameraPanel" hidden aria-label="クーポンQR読み取り">
+    <div class="panel">
+      <h1>お客様のQRを読み取る</h1>
+      <p>スマートフォンの背面カメラをクーポンのQRへ向けてください。</p>
+      <div id="camera"></div>
+      <div class="actions">
+        <button id="startCamera" class="primary" type="button">カメラを起動</button>
+        <button id="manualEntry" class="secondary" type="button">IDを手入力する</button>
+      </div>
+      <p id="cameraError" role="alert"></p>
+      <p class="hint">カメラが使えない場合はSafariで開くか、クーポンIDを手入力してください。</p>
+    </div>
+  </section>
   <script>
+    const $=id=>document.getElementById(id);
     const base='https://script.google.com/macros/s/AKfycbwphXfMQiKax7jESt6mOww5AAK4xDofqRDEA5sMaim84OQXj_QDAtilHOMo7sIymP_9/exec?page=coupon_redeem&authuser=0';
     const coupon=new URLSearchParams(location.search).get('c');
-    document.getElementById('couponApp').src=base+(coupon?'&coupon='+encodeURIComponent(coupon):'');
+    const nonce=Array.from(crypto.getRandomValues(new Uint8Array(16)),byte=>byte.toString(16).padStart(2,'0')).join('');
+    $('couponApp').src=base+(coupon?'&coupon='+encodeURIComponent(coupon):'')+'&bridge='+nonce;
+    let readerWindow=null,readerOrigin='',scanner=null,scanLocked=false;
+
+    window.addEventListener('message',event=>{
+      const data=event.data;
+      if(!/^https:\/\/[a-z0-9.-]+\.googleusercontent\.com$/i.test(event.origin))return;
+      if(!data||data.type!=='coupon-reader-ready'||data.nonce!==nonce)return;
+      readerWindow=event.source;readerOrigin=event.origin;
+      $('scanAgain').hidden=false;
+      if(data.showCamera)$('cameraPanel').hidden=false;
+    });
+
+    $('scanAgain').addEventListener('click',()=>{$('cameraError').textContent='';$('cameraPanel').hidden=false});
+    $('manualEntry').addEventListener('click',async()=>{await stopCamera();$('cameraPanel').hidden=true});
+    $('startCamera').addEventListener('click',async()=>{
+      if(!readerWindow)return;
+      $('cameraError').textContent='';$('startCamera').disabled=true;scanLocked=false;
+      try{
+        if(typeof Html5Qrcode!=='function')throw new Error('reader_unavailable');
+        scanner=new Html5Qrcode('camera');
+        $('manualEntry').disabled=true;
+        await scanner.start({facingMode:'environment'},{fps:10},onScan,()=>{});
+        $('startCamera').hidden=true;
+      }catch(error){
+        await stopCamera();
+        $('cameraError').textContent='カメラを起動できませんでした。Safariで開くか、IDを手入力してください。';
+      }finally{$('startCamera').disabled=false;$('manualEntry').disabled=false}
+    });
+
+    async function stopCamera(){
+      if(scanner){try{await scanner.stop()}catch(error){}scanner=null;$('camera').replaceChildren()}
+      $('startCamera').hidden=false;
+    }
+    async function onScan(text){
+      if(scanLocked)return;
+      const value=String(text||'').trim();
+      let code=value;
+      try{const url=new URL(value);code=url.searchParams.get('c')||url.searchParams.get('coupon')||''}catch(error){}
+      if(!/^[a-f0-9]{64}$/i.test(code)){
+        $('cameraError').textContent='ちゃんこクーポンのQRを読み取ってください。';
+        return;
+      }
+      scanLocked=true;
+      await stopCamera();
+      $('cameraPanel').hidden=true;
+      readerWindow.postMessage({type:'coupon-scan',nonce:nonce,code:code},readerOrigin);
+    }
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)stopCamera()});
   </script>
 </body>
 </html>
