@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.4.4/qrcode.min.js"></script>
+  <style>
+    :root{color-scheme:light;--deep:#4a1118;--red:#8f1f28;--green:#176b46;--cream:#fff9eb;--ink:#2d2520;--muted:#756b63;--line:#eadbc2}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",sans-serif;color:var(--ink);background:radial-gradient(circle at 10% 0%,#fff1bc,transparent 30%),linear-gradient(150deg,#f7e4c2,#fffdf8 52%,#efd7b0)}button{font:inherit}.shell{min-height:100vh;display:grid;place-items:center;padding:22px}.card{width:min(560px,100%);background:rgba(255,255,255,.96);border:1px solid var(--line);border-radius:28px;box-shadow:0 18px 60px rgba(74,17,24,.16);padding:30px;text-align:center}.eyebrow{color:var(--red);font-weight:900;letter-spacing:.12em}.mark{font-size:42px}h1{font-family:serif;color:var(--deep);font-size:clamp(30px,8vw,46px);margin:8px 0}.lead{line-height:1.8;color:var(--muted)}.loading{padding:44px 0;font-weight:800}.amount{font-family:serif;font-size:clamp(48px,13vw,78px);font-weight:900;color:var(--red);margin:10px 0}.status{display:inline-block;border-radius:999px;padding:7px 16px;background:#e8f7ee;color:var(--green);font-weight:900}.qr-wrap{margin:18px auto}.qr-wrap canvas{width:min(310px,78vw)!important;height:auto!important;border:12px solid #fff;border-radius:20px;box-shadow:0 10px 30px rgba(0,0,0,.14)}.instruction{background:#fff0c2;border:1px solid #e7c46a;border-radius:16px;padding:14px;line-height:1.7;font-weight:800}.meta{display:grid;gap:8px;text-align:left;background:#fff8e6;border:1px solid var(--line);padding:16px;border-radius:16px;margin-top:18px}.small{font-size:13px;color:var(--muted);line-height:1.7}.error{border:2px solid #e6a09a;background:#fff5f4;border-radius:18px;padding:22px}.error h2{color:#a5221e;margin:0 0 10px}.btn{border:0;border-radius:999px;padding:13px 20px;background:#f1e5d2;color:var(--deep);font-weight:800;cursor:pointer;margin-top:18px}@media(max-width:560px){.card{padding:24px 16px;border-radius:20px}.shell{padding:12px}}
+  </style>
+</head>
+<body>
+  <main class="shell"><section class="card">
+    <div class="mark">🎫</div><div class="eyebrow">千駄木ちゃんこ祭り</div><h1>マイクーポン</h1>
+    <div id="loading" class="loading">クーポンを確認しています…</div>
+    <div id="coupon" hidden>
+      <div class="status">利用できます</div><div id="amount" class="amount"></div>
+      <p class="instruction">お会計のとき、このQRを店舗スタッフへご提示ください。</p>
+      <div class="qr-wrap"><canvas id="qrCanvas" aria-label="店舗提示用クーポンQRコード"></canvas></div>
+      <div class="meta"><div><b>クーポンID：</b><span id="couponId"></span></div><div><b>有効期限：</b><span id="expiresAt"></span></div><div class="small">1回限り有効です。店舗で使用済み処理が完了すると、再利用できません。このページを閉じる前にブックマークまたはスクリーンショットで保存してください。</div></div>
+    </div>
+    <div id="unavailable" class="error" hidden><h2 id="statusTitle">利用できません</h2><p id="statusMessage"></p><div id="statusMeta" class="small"></div></div>
+    <button id="reloadButton" class="btn" type="button">状態を再確認</button>
+  </section></main>
+  <script>
+    const $=id=>document.getElementById(id);let couponToken='';
+    google.script.url.getLocation(info=>{couponToken=(info.parameter&&info.parameter.c)||'';loadCoupon()});
+    $('reloadButton').addEventListener('click',loadCoupon);
+    function loadCoupon(){
+      $('loading').hidden=false;$('coupon').hidden=true;$('unavailable').hidden=true;$('reloadButton').disabled=true;
+      if(!couponToken){showUnavailable({status:'INVALID',message:'QRコードからこのページを開いてください。'});return}
+      google.script.run.withSuccessHandler(showCoupon).withFailureHandler(err=>showUnavailable({status:'ERROR',message:err.message||'クーポンを確認できませんでした。'})).getCouponWallet(couponToken)
+    }
+    function showCoupon(data){
+      $('loading').hidden=true;$('reloadButton').disabled=false;
+      if(!data.ok){showUnavailable(data);return}
+      $('coupon').hidden=false;$('amount').textContent=data.amount.toLocaleString('ja-JP')+'円引き';$('couponId').textContent=data.couponId;$('expiresAt').textContent=data.expiresAt;
+      const canvas=$('qrCanvas');const context=canvas.getContext('2d');context.clearRect(0,0,canvas.width,canvas.height);QRCode.toCanvas(canvas,data.redeemUrl,{width:360,margin:2,errorCorrectionLevel:'H'})
+    }
+    function showUnavailable(data){
+      $('loading').hidden=true;$('coupon').hidden=true;$('unavailable').hidden=false;$('reloadButton').disabled=false;
+      $('statusTitle').textContent=data.status==='USED'?'使用済みです':data.status==='EXPIRED'?'有効期限が切れています':'クーポンを確認できません';$('statusMessage').textContent=data.message||'このクーポンは利用できません。';$('statusMeta').textContent=data.couponId?'クーポンID：'+data.couponId:''
+    }
+  </script>
+</body>
+</html>

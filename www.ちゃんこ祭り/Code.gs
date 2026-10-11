@@ -3,6 +3,7 @@ const SHEET_GID = 0;
 const ADMIN_ID = 'admin';
 const ADMIN_SESSION_SECONDS = 21600;
 const COUPON_SHEET_NAME = 'クーポンDB';
+const COUPON_WALLET_URL = 'https://wed20220202-collab.github.io/MySite/www.%E3%81%A1%E3%82%83%E3%82%93%E3%81%93%E7%A5%AD%E3%82%8A/coupon.html';
 const COUPON_REDEEM_URL = 'https://wed20220202-collab.github.io/MySite/www.%E3%81%A1%E3%82%83%E3%82%93%E3%81%93%E7%A5%AD%E3%82%8A/coupon-redeem.html';
 const COUPON_HEADERS = [
   'クーポンID',
@@ -33,6 +34,7 @@ function doGet(e) {
   const pages = {
     dashboard: ['Dashboard', '千駄木ちゃんこ祭り 回答状況'],
     coupon_issue: ['CouponIssue', '千駄木ちゃんこ祭り クーポン発行'],
+    coupon_wallet: ['CouponWallet', '千駄木ちゃんこ祭り マイクーポン'],
     coupon_redeem: ['CouponRedeem', '千駄木ちゃんこ祭り クーポン確認']
   };
   if (pages[page]) {
@@ -161,11 +163,21 @@ function issueCoupon(sessionToken, request) {
       amount: amount,
       expiresOn: expiryText.replace(/-/g, '/'),
       token: rawToken,
+      walletUrl: COUPON_WALLET_URL + '?c=' + encodeURIComponent(rawToken),
       redeemUrl: COUPON_REDEEM_URL + '?c=' + encodeURIComponent(rawToken)
     };
   } finally {
     lock.releaseLock();
   }
+}
+
+function getCouponWallet(rawToken) {
+  const token = normalizeCouponToken_(rawToken);
+  const result = lookupCoupon(token);
+  if (result.ok) {
+    result.redeemUrl = COUPON_REDEEM_URL + '?c=' + encodeURIComponent(token);
+  }
+  return result;
 }
 
 function lookupCoupon(rawToken) {
