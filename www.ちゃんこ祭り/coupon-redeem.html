@@ -44,7 +44,7 @@
     const coupon=new URLSearchParams(location.search).get('c');
     const nonce=Array.from(crypto.getRandomValues(new Uint8Array(16)),byte=>byte.toString(16).padStart(2,'0')).join('');
     $('couponApp').src=base+(coupon?'&coupon='+encodeURIComponent(coupon):'')+'&bridge='+nonce;
-    let readerWindow=null,readerOrigin='',scanner=null,scanLocked=false;
+    let readerWindow=null,readerOrigin='',scanner=null,scanLocked=false,cameraAttempt=0,cameraStarting=false,stopPending=Promise.resolve();
 
     window.addEventListener('message',event=>{
       const data=event.data;
@@ -56,28 +56,37 @@
     });
 
     $('scanAgain').addEventListener('click',()=>{$('cameraError').textContent='';$('cameraPanel').hidden=false});
-    $('manualEntry').addEventListener('click',async()=>{await stopCamera();$('cameraPanel').hidden=true});
+    $('manualEntry').addEventListener('click',()=>{cameraAttempt++;$('cameraPanel').hidden=true;stopCamera()});
     $('startCamera').addEventListener('click',async()=>{
-      if(!readerWindow)return;
-      $('cameraError').textContent='';$('startCamera').disabled=true;scanLocked=false;
+      if(!readerWindow||cameraStarting)return;
+      const attempt=++cameraAttempt;
+      cameraStarting=true;
+      $('cameraError').textContent='カメラの許可を待っています。使えない場合はIDを手入力してください。';$('startCamera').disabled=true;scanLocked=false;
       try{
+        await stopPending;
+        if(attempt!==cameraAttempt||$('cameraPanel').hidden)return;
         if(typeof Html5Qrcode!=='function')throw new Error('reader_unavailable');
-        scanner=new Html5Qrcode('camera');
-        $('manualEntry').disabled=true;
-        await scanner.start({facingMode:'environment'},{fps:10},onScan,()=>{});
-        $('startCamera').hidden=true;
+        const activeScanner=new Html5Qrcode('camera');
+        scanner=activeScanner;
+        const starting=activeScanner.start({facingMode:'environment'},{fps:10},onScan,()=>{});
+        starting.then(()=>{if(attempt!==cameraAttempt||scanner!==activeScanner||$('cameraPanel').hidden)stopPending=stopPending.then(()=>activeScanner.stop().catch(()=>{}))},()=>{});
+        await starting;
+        if(attempt===cameraAttempt&&!$('cameraPanel').hidden){$('cameraError').textContent='';$('startCamera').hidden=true}
       }catch(error){
-        await stopCamera();
-        $('cameraError').textContent='カメラを起動できませんでした。Safariで開くか、IDを手入力してください。';
-      }finally{$('startCamera').disabled=false;$('manualEntry').disabled=false}
+        if(attempt===cameraAttempt){await stopCamera();$('cameraError').textContent='カメラを起動できませんでした。Safariで開くか、IDを手入力してください。'}
+      }finally{cameraStarting=false;$('startCamera').disabled=false}
     });
 
-    async function stopCamera(){
-      if(scanner){try{await scanner.stop()}catch(error){}scanner=null;$('camera').replaceChildren()}
-      $('startCamera').hidden=false;
+    function stopCamera(){
+      const activeScanner=scanner;scanner=null;
+      stopPending=stopPending.then(async()=>{
+        if(activeScanner)try{await activeScanner.stop()}catch(error){}
+        if(!scanner){$('camera').replaceChildren();$('startCamera').hidden=false}
+      }).catch(()=>{});
+      return stopPending;
     }
     async function onScan(text){
-      if(scanLocked)return;
+      if(scanLocked||$('cameraPanel').hidden)return;
       const value=String(text||'').trim();
       let code=value;
       try{const url=new URL(value);code=url.searchParams.get('c')||url.searchParams.get('coupon')||''}catch(error){}
@@ -90,7 +99,7 @@
       $('cameraPanel').hidden=true;
       readerWindow.postMessage({type:'coupon-scan',nonce:nonce,code:code},readerOrigin);
     }
-    document.addEventListener('visibilitychange',()=>{if(document.hidden)stopCamera()});
+    document.addEventListener('visibilitychange',()=>{if(document.hidden){cameraAttempt++;stopCamera()}});
   </script>
 </body>
 </html>
