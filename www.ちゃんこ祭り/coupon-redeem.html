@@ -13,7 +13,7 @@
   <script>
     const base='https://script.google.com/macros/s/AKfycbwphXfMQiKax7jESt6mOww5AAK4xDofqRDEA5sMaim84OQXj_QDAtilHOMo7sIymP_9/exec?page=coupon_redeem&authuser=0';
     const coupon=new URLSearchParams(location.search).get('c');
-    document.getElementById('couponApp').src=base+(coupon?'&c='+encodeURIComponent(coupon):'');
+    document.getElementById('couponApp').src=base+(coupon?'&coupon='+encodeURIComponent(coupon):'');
   </script>
 </body>
 </html>

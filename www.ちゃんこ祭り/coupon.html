@@ -13,7 +13,7 @@
   <script>
     const base='https://script.google.com/macros/s/AKfycbwphXfMQiKax7jESt6mOww5AAK4xDofqRDEA5sMaim84OQXj_QDAtilHOMo7sIymP_9/exec?page=coupon_wallet&authuser=0';
     const token=new URLSearchParams(location.search).get('c');
-    document.getElementById('couponApp').src=base+(token?'&c='+encodeURIComponent(token):'');
+    document.getElementById('couponApp').src=base+(token?'&coupon='+encodeURIComponent(token):'');
   </script>
 </body>
 </html>

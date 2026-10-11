@@ -24,7 +24,7 @@
   </section></main>
   <script>
     const $=id=>document.getElementById(id);let couponToken='';
-    google.script.url.getLocation(info=>{couponToken=(info.parameter&&info.parameter.c)||'';loadCoupon()});
+    google.script.url.getLocation(info=>{couponToken=(info.parameter&&info.parameter.coupon)||'';loadCoupon()});
     $('reloadButton').addEventListener('click',loadCoupon);
     function loadCoupon(){
       $('loading').hidden=false;$('coupon').hidden=true;$('unavailable').hidden=true;$('reloadButton').disabled=true;
