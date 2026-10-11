@@ -2,7 +2,15 @@ const SPREADSHEET_ID = '1AIHMmcZEfCh7QvNza8HlxHSjAjhj8sPPyQgUbTGvAGU';
 const SHEET_GID = 0;
 const ADMIN_ID = 'admin';
 const ADMIN_SESSION_SECONDS = 21600;
+const MANAGER_ID = 'manager';
+const MANAGER_SESSION_SECONDS = 21600;
+const MANAGER_LOGIN_RATE_KEY = 'manager-login-failures';
+const MANAGER_LOGIN_WINDOW_MS = 60000;
+const MANAGER_LOGIN_COOLDOWN_MS = 30000;
+const MANAGER_LOGIN_MAX_FAILURES = 8;
 const COUPON_SHEET_NAME = 'クーポンDB';
+const STORE_SHEET_NAME = '加盟店';
+const COUPON_AUDIT_SHEET_NAME = 'クーポン操作履歴';
 const COUPON_WALLET_URL = 'https://wed20220202-collab.github.io/MySite/www.%E3%81%A1%E3%82%83%E3%82%93%E3%81%93%E7%A5%AD%E3%82%8A/coupon.html';
 const COUPON_REDEEM_URL = 'https://wed20220202-collab.github.io/MySite/www.%E3%81%A1%E3%82%83%E3%82%93%E3%81%93%E7%A5%AD%E3%82%8A/coupon-redeem.html';
 const COUPON_HEADERS = [
@@ -17,6 +25,8 @@ const COUPON_HEADERS = [
   '発行者',
   '備考'
 ];
+const STORE_HEADERS = ['店舗ID', '店舗名', '店舗責任者', '住所', '緯度', '経度', '公開', '登録日時', '更新日時'];
+const COUPON_AUDIT_HEADERS = ['操作日時', '操作', '対象件数', '操作アカウント', '結果', '備考'];
 const HEADERS = [
   '受付日時',
   '味',
@@ -33,6 +43,8 @@ function doGet(e) {
   const page = e && e.parameter ? String(e.parameter.page || '') : '';
   const pages = {
     dashboard: ['Dashboard', '千駄木ちゃんこ祭り 回答状況'],
+    management: ['ManagementApp', '千駄木二丁目町会商店街総括管理サイト'],
+    stores: ['StoresApp', '千駄木二丁目町会 利用可能店舗'],
     coupon_issue: ['CouponIssue', '千駄木ちゃんこ祭り クーポン発行'],
     coupon_wallet: ['CouponWallet', '千駄木ちゃんこ祭り マイクーポン'],
     coupon_redeem: ['CouponRedeem', '千駄木ちゃんこ祭り クーポン確認']
@@ -114,6 +126,241 @@ function adminLogout(token) {
   return true;
 }
 
+function managerLogin(id, password) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const cache = CacheService.getScriptCache();
+    const now = Date.now();
+    let rate = {};
+    try { rate = JSON.parse(cache.get(MANAGER_LOGIN_RATE_KEY) || '{}'); } catch (error) { rate = {}; }
+    if (!rate || typeof rate !== 'object') rate = {};
+    if (Number(rate.blockedUntil) > now) {
+      return { ok: false, message: 'ログイン試行が集中しています。30秒ほど待ってから再試行してください。' };
+    }
+    if (Number(rate.blockedUntil) > 0) rate = {};
+
+    const validId = safeEqual_(String(id || ''), MANAGER_ID);
+    const properties = PropertiesService.getScriptProperties();
+    const enteredPassword = String(password || '');
+    const passwordHash = sha256_(enteredPassword);
+    const configuredHash = properties.getProperty('MANAGER_PASSWORD_SHA256') || '';
+    const temporaryPassword = configuredHash ? '' : (properties.getProperty('MANAGER_PASSWORD_TEMP') || '');
+    const validPassword = configuredHash
+      ? safeEqual_(passwordHash, configuredHash)
+      : !!temporaryPassword && safeEqual_(enteredPassword, temporaryPassword);
+    if (validId && validPassword) {
+      if (!configuredHash) {
+        properties.setProperty('MANAGER_PASSWORD_SHA256', passwordHash);
+        properties.deleteProperty('MANAGER_PASSWORD_TEMP');
+      }
+      cache.remove(MANAGER_LOGIN_RATE_KEY);
+      const token = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '');
+      cache.put('manager:' + token, '1', MANAGER_SESSION_SECONDS);
+      return { ok: true, token: token };
+    }
+
+    const previousStart = Number(rate.windowStart) || 0;
+    const withinWindow = previousStart > 0 && now - previousStart < MANAGER_LOGIN_WINDOW_MS;
+    const failures = (withinWindow ? (Number(rate.failures) || 0) : 0) + 1;
+    cache.put(MANAGER_LOGIN_RATE_KEY, JSON.stringify({
+      windowStart: withinWindow ? previousStart : now,
+      failures: failures,
+      blockedUntil: failures >= MANAGER_LOGIN_MAX_FAILURES ? now + MANAGER_LOGIN_COOLDOWN_MS : 0
+    }), 90);
+    return {
+      ok: false,
+      message: failures >= MANAGER_LOGIN_MAX_FAILURES
+        ? 'ログイン試行が集中しています。30秒ほど待ってから再試行してください。'
+        : 'IDまたはパスワードが違います。'
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function managerLogout(token) {
+  if (token) CacheService.getScriptCache().remove('manager:' + token);
+  return true;
+}
+
+function getManagementData(token, page) {
+  requireManager_(token);
+  const sheet = getCouponSheet_();
+  ensureCouponHeaders_(sheet);
+  const lastRow = sheet.getLastRow();
+  const rows = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, COUPON_HEADERS.length).getValues() : [];
+  const now = Date.now();
+  const stats = { active: 0, used: 0, invalid: 0, expired: 0, issued: 0 };
+  const activeCoupons = [];
+  const activeParts = [];
+
+  rows.forEach((row, index) => {
+    if (!String(row[0] || '').trim()) return;
+    stats.issued += 1;
+    const status = String(row[3] || '');
+    if (isCouponActive_(status, row[5], now)) {
+      stats.active += 1;
+      activeParts.push(couponSnapshotPart_(row, index + 2));
+      activeCoupons.push({
+        couponId: String(row[0]),
+        amount: Number(row[2]) || 0,
+        issuedAt: formatManagementDate_(row[4]),
+        expiresAt: formatManagementDate_(row[5])
+      });
+    } else if (status === '使用済み') {
+      stats.used += 1;
+    } else if (status === '未使用' && couponExpiryTime_(row[5]) !== null) {
+      stats.expired += 1;
+    } else {
+      stats.invalid += 1;
+    }
+  });
+
+  activeCoupons.reverse();
+  const pageSize = 50;
+  const totalPages = Math.max(1, Math.ceil(activeCoupons.length / pageSize));
+  const requestedPage = Number(page);
+  const currentPage = Number.isInteger(requestedPage) && requestedPage > 0
+    ? Math.min(requestedPage, totalPages)
+    : 1;
+  const start = (currentPage - 1) * pageSize;
+  const stores = getStoreRows_().map(storeManagementResult_);
+  stores.sort((left, right) => left.name.localeCompare(right.name, 'ja'));
+  CacheService.getScriptCache().put('manager:' + token, '1', MANAGER_SESSION_SECONDS);
+  return {
+    stats: stats,
+    activeDigest: sha256_(activeParts.join('\n')),
+    activeCoupons: activeCoupons.slice(start, start + pageSize),
+    pagination: { page: currentPage, pageSize: pageSize, totalPages: totalPages, total: activeCoupons.length },
+    stores: stores,
+    fetchedAt: Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss')
+  };
+}
+
+function getPublicStores() {
+  return getStoreRows_()
+    .filter((row) => row[6] === true && String(row[0] || '').trim() && String(row[1] || '').trim() && String(row[3] || '').trim() && isValidStoreCoordinate_(row[4], -90, 90) && isValidStoreCoordinate_(row[5], -180, 180))
+    .map((row) => ({
+      storeId: String(row[0] || ''),
+      name: String(row[1] || ''),
+      address: String(row[3] || ''),
+      lat: Number(row[4]),
+      lng: Number(row[5])
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name, 'ja'));
+}
+
+function saveStore(token, store) {
+  requireManager_(token);
+  const request = store && typeof store === 'object' ? store : {};
+  const requestedId = clean_(request.storeId, 32).toUpperCase();
+  if (requestedId && !/^STORE-[A-F0-9]{12}$/.test(requestedId)) {
+    throw new Error('店舗IDの形式が正しくありません。');
+  }
+  const name = safeStoreText_(request.name, 80, '店舗名', true);
+  const manager = safeStoreText_(request.manager, 80, '店舗責任者', true);
+  const address = safeStoreText_(request.address, 180, '住所', false);
+  const lat = storeCoordinate_(request.lat, -90, 90, '緯度');
+  const lng = storeCoordinate_(request.lng, -180, 180, '経度');
+  const published = request.published === true;
+  if (published && (!address || lat === null || lng === null)) {
+    throw new Error('公開する店舗は住所・緯度・経度を入力してください。');
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sheet = getStoreSheet_();
+    ensureStoreHeaders_(sheet);
+    const lastRow = sheet.getLastRow();
+    const ids = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, 1).getValues().map((row) => String(row[0] || '')) : [];
+    const now = new Date();
+    let storeId = requestedId;
+    if (storeId) {
+      const indexes = ids.map((id, index) => id === storeId ? index : -1).filter((index) => index >= 0);
+      if (indexes.length !== 1) throw new Error('更新対象の店舗が見つからないか、店舗IDが重複しています。');
+      const rowNumber = indexes[0] + 2;
+      sheet.getRange(rowNumber, 2, 1, 6).setValues([[name, manager, address, lat === null ? '' : lat, lng === null ? '' : lng, published]]);
+      sheet.getRange(rowNumber, 9).setValue(now);
+    } else {
+      do {
+        storeId = 'STORE-' + Utilities.getUuid().replace(/-/g, '').slice(0, 12).toUpperCase();
+      } while (ids.indexOf(storeId) !== -1);
+      sheet.appendRow([storeId, name, manager, address, lat === null ? '' : lat, lng === null ? '' : lng, published, now, now]);
+    }
+    SpreadsheetApp.flush();
+    CacheService.getScriptCache().put('manager:' + token, '1', MANAGER_SESSION_SECONDS);
+    return {
+      ok: true,
+      store: { storeId: storeId, name: name, manager: manager, address: address, lat: lat, lng: lng, published: published, updatedAt: formatManagementDate_(now) }
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function revokeActiveCoupons(token, expectedCount, confirmation, expectedDigest) {
+  requireManager_(token);
+  if (confirmation !== '全件無効化') throw new Error('確認文字列が一致しません。');
+  const expected = Number(expectedCount);
+  if (!Number.isSafeInteger(expected) || expected < 0) throw new Error('対象件数を再確認してください。');
+  const digest = String(expectedDigest || '').toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(digest)) throw new Error('対象一覧の確認情報がありません。画面を更新してください。');
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sheet = getCouponSheet_();
+    ensureCouponHeaders_(sheet);
+    const lastRow = sheet.getLastRow();
+    const count = Math.max(0, lastRow - 1);
+    const couponRows = count ? sheet.getRange(2, 1, count, 6).getValues() : [];
+    const now = Date.now();
+    const activeIndexes = [];
+    const activeParts = [];
+    couponRows.forEach((row, index) => {
+      if (String(row[0] || '').trim() && isCouponActive_(String(row[3] || ''), row[5], now)) {
+        activeIndexes.push(index);
+        activeParts.push(couponSnapshotPart_(row, index + 2));
+      }
+    });
+    if (activeIndexes.length !== expected) {
+      throw new Error('対象件数が変わりました。画面を更新してから再実行してください。');
+    }
+    if (!safeEqual_(sha256_(activeParts.join('\n')), digest)) {
+      throw new Error('対象クーポンが変わりました。画面を更新してから再実行してください。');
+    }
+    if (!activeIndexes.length) return { ok: true, revoked: 0, at: Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss') };
+
+    const auditSheet = getCouponAuditSheet_();
+    ensureCouponAuditHeaders_(auditSheet);
+    const operatedAt = new Date();
+    auditSheet.appendRow([operatedAt, '未使用クーポン全件無効化', activeIndexes.length, MANAGER_ID, '開始', '削除せず状態を無効に変更']);
+    const auditRow = auditSheet.getLastRow();
+    try {
+      activeIndexes.forEach((index) => { couponRows[index][3] = '無効'; });
+      sheet.getRange(2, 4, count, 1).setValues(couponRows.map((row) => [row[3]]));
+      SpreadsheetApp.flush();
+      auditSheet.getRange(auditRow, 5).setValue('完了');
+      SpreadsheetApp.flush();
+    } catch (error) {
+      try {
+        auditSheet.getRange(auditRow, 5).setValue('要確認');
+        auditSheet.getRange(auditRow, 6).setValue('処理中にエラー。クーポンDBの状態を確認してください。');
+        SpreadsheetApp.flush();
+      } catch (auditError) {
+        console.error(auditError);
+      }
+      throw error;
+    }
+    CacheService.getScriptCache().put('manager:' + token, '1', MANAGER_SESSION_SECONDS);
+    return { ok: true, revoked: activeIndexes.length, at: formatManagementDate_(operatedAt) };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function setupCouponSystem() {
   const sheet = getCouponSheet_();
   ensureCouponHeaders_(sheet);
@@ -132,7 +379,7 @@ function issueCoupon(sessionToken, request) {
     throw new Error('有効期限を指定してください。');
   }
   const expiresAt = new Date(expiryText + 'T23:59:59+09:00');
-  if (isNaN(expiresAt.getTime()) || expiresAt.getTime() < Date.now()) {
+  if (isNaN(expiresAt.getTime()) || Utilities.formatDate(expiresAt, 'Asia/Tokyo', 'yyyy-MM-dd') !== expiryText || expiresAt.getTime() < Date.now()) {
     throw new Error('有効期限は本日以降にしてください。');
   }
 
@@ -228,11 +475,11 @@ function redeemCoupon(sessionToken, rawToken, storeName) {
 function couponPublicResult_(record) {
   const values = record.values;
   const status = String(values[3] || '');
-  const expiresAt = values[5] instanceof Date ? values[5] : new Date(values[5]);
+  const expiryTime = couponExpiryTime_(values[5]);
   const base = {
     couponId: String(values[0] || ''),
     amount: Number(values[2] || 0),
-    expiresAt: formatDate_(expiresAt, 'Asia/Tokyo')
+    expiresAt: expiryTime === null ? '' : formatDate_(new Date(expiryTime), 'Asia/Tokyo')
   };
   if (status === '使用済み') {
     return Object.assign(base, {
@@ -243,7 +490,10 @@ function couponPublicResult_(record) {
       storeName: String(values[7] || '')
     });
   }
-  if (!isNaN(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
+  if (expiryTime === null) {
+    return Object.assign(base, { ok: false, status: 'INVALID', message: '有効期限を確認できないため利用できません。' });
+  }
+  if (expiryTime < Date.now()) {
     return Object.assign(base, { ok: false, status: 'EXPIRED', message: 'このクーポンは有効期限切れです。' });
   }
   if (status !== '未使用') {
@@ -295,6 +545,71 @@ function ensureCouponHeaders_(sheet) {
   }
 }
 
+function getStoreSheet_() {
+  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+  return spreadsheet.getSheetByName(STORE_SHEET_NAME) || spreadsheet.insertSheet(STORE_SHEET_NAME);
+}
+
+function ensureStoreHeaders_(sheet) {
+  const range = sheet.getRange(1, 1, 1, STORE_HEADERS.length);
+  const existing = range.getDisplayValues()[0];
+  if (existing.every((value) => !value) && sheet.getLastRow() <= 1) {
+    range.setValues([STORE_HEADERS]);
+    range.setFontWeight('bold').setBackground('#4a1118').setFontColor('#ffffff');
+    range.setHorizontalAlignment('center').setWrap(true);
+    sheet.setFrozenRows(1);
+    sheet.setColumnWidths(1, STORE_HEADERS.length, 150);
+    sheet.setColumnWidth(2, 220);
+    sheet.setColumnWidth(4, 320);
+    sheet.getRange('E:F').setNumberFormat('0.000000');
+    sheet.getRange('H:I').setNumberFormat('yyyy/MM/dd HH:mm:ss');
+  } else if (existing.some((value, index) => value !== STORE_HEADERS[index])) {
+    throw new Error('加盟店シートの列構成が異なります。管理者に確認してください。');
+  }
+}
+
+function getStoreRows_() {
+  const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(STORE_SHEET_NAME);
+  if (!sheet) return [];
+  ensureStoreHeaders_(sheet);
+  const lastRow = sheet.getLastRow();
+  return lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, STORE_HEADERS.length).getValues().filter((row) => String(row[0] || '').trim()) : [];
+}
+
+function storeManagementResult_(row) {
+  return {
+    storeId: String(row[0] || ''),
+    name: String(row[1] || ''),
+    manager: String(row[2] || ''),
+    address: String(row[3] || ''),
+    lat: isValidStoreCoordinate_(row[4], -90, 90) ? Number(row[4]) : null,
+    lng: isValidStoreCoordinate_(row[5], -180, 180) ? Number(row[5]) : null,
+    published: row[6] === true,
+    updatedAt: formatManagementDate_(row[8])
+  };
+}
+
+function getCouponAuditSheet_() {
+  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+  return spreadsheet.getSheetByName(COUPON_AUDIT_SHEET_NAME) || spreadsheet.insertSheet(COUPON_AUDIT_SHEET_NAME);
+}
+
+function ensureCouponAuditHeaders_(sheet) {
+  const range = sheet.getRange(1, 1, 1, COUPON_AUDIT_HEADERS.length);
+  const existing = range.getDisplayValues()[0];
+  if (existing.every((value) => !value) && sheet.getLastRow() <= 1) {
+    range.setValues([COUPON_AUDIT_HEADERS]);
+    range.setFontWeight('bold').setBackground('#4a1118').setFontColor('#ffffff');
+    range.setHorizontalAlignment('center').setWrap(true);
+    sheet.setFrozenRows(1);
+    sheet.setColumnWidths(1, COUPON_AUDIT_HEADERS.length, 170);
+    sheet.setColumnWidth(6, 320);
+    sheet.getRange('A:A').setNumberFormat('yyyy/MM/dd HH:mm:ss');
+  } else if (existing.some((value, index) => value !== COUPON_AUDIT_HEADERS[index])) {
+    throw new Error('クーポン操作履歴シートの列構成が異なります。管理者に確認してください。');
+  }
+}
+
 function distribution_(title, rows, columnIndex, labels, includeBlank) {
   const counts = {};
   labels.forEach((label) => counts[label] = 0);
@@ -324,6 +639,65 @@ function requireAdmin_(token) {
   if (!token || CacheService.getScriptCache().get('admin:' + token) !== '1') {
     throw new Error('SESSION_EXPIRED');
   }
+}
+
+function requireManager_(token) {
+  if (!token || CacheService.getScriptCache().get('manager:' + token) !== '1') {
+    throw new Error('SESSION_EXPIRED');
+  }
+}
+
+function isCouponActive_(status, expiryValue, now) {
+  if (status !== '未使用') return false;
+  const expiryTime = couponExpiryTime_(expiryValue);
+  return expiryTime !== null && expiryTime >= now;
+}
+
+function couponExpiryTime_(value) {
+  // Coupon issuance writes a real Date. Text cells are not trusted as expiry dates.
+  if (!(value instanceof Date)) return null;
+  return isNaN(value.getTime()) ? null : value.getTime();
+}
+
+function couponSnapshotPart_(row, rowNumber) {
+  return JSON.stringify([
+    rowNumber,
+    String(row[0] || ''),
+    String(row[1] || ''),
+    String(row[2] === null || row[2] === undefined ? '' : row[2]),
+    String(row[3] || ''),
+    snapshotField_(row[4]),
+    snapshotField_(row[5])
+  ]);
+}
+
+function snapshotField_(value) {
+  return value instanceof Date ? 'date:' + value.getTime() : 'value:' + String(value === null || value === undefined ? '' : value);
+}
+
+function formatManagementDate_(value) {
+  if (value === '' || value === null || value === undefined) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  return isNaN(date.getTime()) ? String(value) : Utilities.formatDate(date, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
+}
+
+function safeStoreText_(value, maxLength, label, required) {
+  const text = clean_(value, maxLength);
+  if (required && !text) throw new Error(label + 'を入力してください。');
+  if (/^[=+\-@]/.test(text)) throw new Error(label + 'の先頭に使用できない記号があります。');
+  return text;
+}
+
+function isValidStoreCoordinate_(value, min, max) {
+  if (value === '' || value === null || value === undefined) return false;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= min && numeric <= max;
+}
+
+function storeCoordinate_(value, min, max, label) {
+  if (value === '' || value === null || value === undefined) return null;
+  if (!isValidStoreCoordinate_(value, min, max)) throw new Error(label + 'の値が正しくありません。');
+  return Number(value);
 }
 
 function sha256_(value) {

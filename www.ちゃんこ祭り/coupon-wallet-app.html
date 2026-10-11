@@ -17,10 +17,11 @@
       <div class="status">利用できます</div><div id="amount" class="amount"></div>
       <p class="instruction">お会計のとき、このQRを店舗スタッフへご提示ください。</p>
       <div class="qr-wrap"><canvas id="qrCanvas" aria-label="店舗提示用クーポンQRコード"></canvas></div>
-      <div class="meta"><div><b>クーポンID：</b><span id="couponId"></span></div><div><b>有効期限：</b><span id="expiresAt"></span></div><div class="small">1回限り有効です。店舗で使用済み処理が完了すると、再利用できません。このページを閉じる前にブックマークまたはスクリーンショットで保存してください。</div></div>
+      <div class="meta"><div><b>クーポンID：</b><span id="couponId"></span></div><div><b>有効期限：</b><span id="expiresAt"></span></div><div class="small">1回限り有効です。店舗で使用済み処理が完了すると、再利用できません。お客様用サイトでは、この端末のブラウザにクーポンを自動保存します。別の端末への引き継ぎや、ブラウザのデータを消した後の復元はできません。念のためURLのブックマークまたはQRのスクリーンショットもおすすめします。</div></div>
     </div>
     <div id="unavailable" class="error" hidden><h2 id="statusTitle">利用できません</h2><p id="statusMessage"></p><div id="statusMeta" class="small"></div></div>
     <button id="reloadButton" class="btn" type="button">状態を再確認</button>
+    <p class="small"><a href="https://wed20220202-collab.github.io/MySite/www.%E3%81%A1%E3%82%83%E3%82%93%E3%81%93%E7%A5%AD%E3%82%8A/stores.html" target="_blank" rel="noopener noreferrer">クーポンを利用できる店舗を見る</a></p>
   </section></main>
   <script>
     const $=id=>document.getElementById(id);let couponToken='';
