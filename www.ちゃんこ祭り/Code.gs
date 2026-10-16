@@ -8,6 +8,15 @@ const MANAGER_LOGIN_RATE_KEY = 'manager-login-failures';
 const MANAGER_LOGIN_WINDOW_MS = 60000;
 const MANAGER_LOGIN_COOLDOWN_MS = 30000;
 const MANAGER_LOGIN_MAX_FAILURES = 8;
+const MERCHANT_SESSION_SECONDS = 21600;
+const MERCHANT_PASSWORD_ROUNDS = 5000;
+const MERCHANT_LOGIN_WINDOW_MS = 300000;
+const MERCHANT_LOGIN_COOLDOWN_MS = 300000;
+const MERCHANT_LOGIN_MAX_FAILURES = 5;
+const MERCHANT_GLOBAL_RATE_KEY = 'merchant-login-global-failures';
+const MERCHANT_GLOBAL_WINDOW_MS = 60000;
+const MERCHANT_GLOBAL_COOLDOWN_MS = 60000;
+const MERCHANT_GLOBAL_MAX_FAILURES = 60;
 const COUPON_SHEET_NAME = 'クーポンDB';
 const STORE_SHEET_NAME = '加盟店';
 const COUPON_AUDIT_SHEET_NAME = 'クーポン操作履歴';
@@ -25,7 +34,10 @@ const COUPON_HEADERS = [
   '発行者',
   '備考'
 ];
-const STORE_HEADERS = ['店舗ID', '店舗名', '店舗責任者', '住所', '緯度', '経度', '公開', '登録日時', '更新日時'];
+const STORE_HEADERS = [
+  '店舗ID', '店舗名', '店舗責任者', '住所', '緯度', '経度', '公開', '登録日時', '更新日時',
+  'ログインID', 'パスワードソルト', 'パスワードハッシュ', '認証バージョン', '認証更新日時'
+];
 const COUPON_AUDIT_HEADERS = [
   '操作日時', '操作', '対象件数', '操作アカウント', '結果', '備考',
   '操作ID', 'クーポンID', '割引額（円）', '変更前の状態', '変更後の状態', 'クーポンDB行'
@@ -188,6 +200,149 @@ function managerLogout(token) {
   return true;
 }
 
+function merchantLogin(id, password) {
+  let loginId = '';
+  try { loginId = merchantLoginId_(id, true); } catch (error) { loginId = ''; }
+  const enteredPassword = String(password === null || password === undefined ? '' : password);
+  const cache = CacheService.getScriptCache();
+  const rateKey = 'merchant-login-rate:' + sha256_(loginId || String(id || '').slice(0, 80).trim().toLowerCase());
+  const lockedMessage = 'ログイン試行が多すぎます。5分ほど待ってから再試行してください。';
+  const busyMessage = 'ログインが混み合っています。1分ほど待ってから再試行してください。';
+  if (merchantRateBlocked_(cache, MERCHANT_GLOBAL_RATE_KEY, Date.now())) return { ok: false, message: busyMessage };
+  if (merchantRateBlocked_(cache, rateKey, Date.now())) return { ok: false, message: lockedMessage };
+
+  let candidate = null;
+  let attemptedSheet = false;
+  if (loginId && enteredPassword.length >= 12 && enteredPassword.length <= 128 && !/[\u0000-\u001F\u007F]/.test(enteredPassword)) {
+    attemptedSheet = true;
+    const matches = getStoreRows_().filter((row) => String(row[9] || '').trim().toLowerCase() === loginId);
+    if (matches.length === 1 && String(matches[0][10] || '') && String(matches[0][11] || '')) {
+      const row = matches[0];
+      const attemptedHash = merchantPasswordHash_(enteredPassword, String(row[10]), false);
+      if (safeEqual_(attemptedHash, String(row[11]))) {
+        candidate = { storeId: String(row[0]), hash: String(row[11]), version: merchantCredentialVersion_(row) };
+      }
+    }
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const now = Date.now();
+    if (merchantRateBlocked_(cache, MERCHANT_GLOBAL_RATE_KEY, now)) return { ok: false, message: busyMessage };
+    if (merchantRateBlocked_(cache, rateKey, now)) return { ok: false, message: lockedMessage };
+    if (candidate) {
+      // A manager may reset credentials while the password hash is being calculated.
+      const currentRows = getStoreRows_();
+      const currentMatches = currentRows.filter((row) => String(row[0] || '') === candidate.storeId);
+      const loginMatches = currentRows.filter((row) => String(row[9] || '').trim().toLowerCase() === loginId);
+      if (currentMatches.length === 1 && loginMatches.length === 1) {
+        const row = currentMatches[0];
+        if (String(row[9] || '').trim().toLowerCase() === loginId &&
+            safeEqual_(String(row[11] || ''), candidate.hash) &&
+            merchantCredentialVersion_(row) === candidate.version) {
+          cache.remove(rateKey);
+          const token = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').toLowerCase();
+          cache.put('merchant:' + token, JSON.stringify({ storeId: candidate.storeId, version: candidate.version }), MERCHANT_SESSION_SECONDS);
+          return { ok: true, token: token, storeId: candidate.storeId, storeName: String(row[1] || ''), loginId: loginId };
+        }
+      }
+    }
+    const failures = merchantRecordFailure_(cache, rateKey, now);
+    if (attemptedSheet) {
+      merchantRecordFailure_(cache, MERCHANT_GLOBAL_RATE_KEY, now,
+        MERCHANT_GLOBAL_MAX_FAILURES, MERCHANT_GLOBAL_WINDOW_MS, MERCHANT_GLOBAL_COOLDOWN_MS);
+    }
+    return {
+      ok: false,
+      message: failures >= MERCHANT_LOGIN_MAX_FAILURES
+        ? lockedMessage
+        : 'IDまたはパスワードが違います。'
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function merchantLogout(token) {
+  if (/^[a-f0-9]{64}$/.test(String(token || ''))) {
+    CacheService.getScriptCache().remove('merchant:' + token);
+  }
+  return true;
+}
+
+function merchantUpdateCredentials(token, currentPassword, newId, newPassword) {
+  const nextLoginId = merchantLoginId_(newId, true);
+  const nextPassword = String(newPassword === null || newPassword === undefined ? '' : newPassword);
+  if (nextPassword) validateMerchantPassword_(nextPassword);
+  const enteredPassword = String(currentPassword === null || currentPassword === undefined ? '' : currentPassword);
+  if (!enteredPassword) throw new Error('現在のパスワードを入力してください。');
+  if (enteredPassword.length > 128) throw new Error('現在のパスワードが違います。');
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const merchant = requireMerchant_(token);
+    const cache = CacheService.getScriptCache();
+    const rateKey = 'merchant-change-rate:' + merchant.storeId;
+    const nowMs = Date.now();
+    if (merchantRateBlocked_(cache, rateKey, nowMs)) {
+      throw new Error('認証の試行が多すぎます。5分ほど待ってから再試行してください。');
+    }
+    const sheet = getStoreSheet_();
+    ensureStoreHeaders_(sheet);
+    const lastRow = sheet.getLastRow();
+    const rows = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, STORE_HEADERS.length).getValues() : [];
+    const indexes = rows.map((row, index) => String(row[0] || '') === merchant.storeId ? index : -1).filter((index) => index >= 0);
+    if (indexes.length !== 1) throw new Error('SESSION_EXPIRED');
+    const row = rows[indexes[0]];
+    const attemptedHash = merchantPasswordHash_(enteredPassword, String(row[10] || ''), false);
+    if (!safeEqual_(attemptedHash, String(row[11] || ''))) {
+      merchantRecordFailure_(cache, rateKey, nowMs);
+      throw new Error('現在のパスワードが違います。');
+    }
+    if (nextLoginId === merchant.loginId && !nextPassword) {
+      throw new Error('変更するログインIDか新しいパスワードを入力してください。');
+    }
+    ensureMerchantLoginAvailable_(rows, nextLoginId, merchant.storeId);
+    const now = new Date();
+    const salt = nextPassword ? merchantSalt_() : String(row[10]);
+    const hash = nextPassword ? merchantPasswordHash_(nextPassword, salt, false) : String(row[11]);
+    sheet.getRange(indexes[0] + 2, 10, 1, 5).setValues([[
+      nextLoginId, salt, hash, merchantCredentialVersion_(row) + 1, now
+    ]]);
+    SpreadsheetApp.flush();
+    cache.remove(rateKey);
+    cache.remove('merchant:' + token);
+    return { ok: true, storeId: merchant.storeId, storeName: String(row[1] || ''), loginId: nextLoginId };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function merchantRateBlocked_(cache, key, now) {
+  let rate = {};
+  try { rate = JSON.parse(cache.get(key) || '{}'); } catch (error) { rate = {}; }
+  return !!rate && Number(rate.blockedUntil) > now;
+}
+
+function merchantRecordFailure_(cache, key, now, limit, windowMs, cooldownMs) {
+  let rate = {};
+  try { rate = JSON.parse(cache.get(key) || '{}'); } catch (error) { rate = {}; }
+  const maxFailures = limit || MERCHANT_LOGIN_MAX_FAILURES;
+  const windowDuration = windowMs || MERCHANT_LOGIN_WINDOW_MS;
+  const cooldownDuration = cooldownMs || MERCHANT_LOGIN_COOLDOWN_MS;
+  const windowStart = Number(rate.windowStart) || 0;
+  const withinWindow = windowStart > 0 && now - windowStart < windowDuration;
+  const failures = (withinWindow ? Number(rate.failures) || 0 : 0) + 1;
+  cache.put(key, JSON.stringify({
+    windowStart: withinWindow ? windowStart : now,
+    failures: failures,
+    blockedUntil: failures >= maxFailures ? now + cooldownDuration : 0
+  }), 600);
+  return failures;
+}
+
 function getManagementData(token, page) {
   requireManager_(token);
   const sheet = getCouponSheet_();
@@ -271,6 +426,9 @@ function saveStore(token, store) {
   const lat = storeCoordinate_(request.lat, -90, 90, '緯度');
   const lng = storeCoordinate_(request.lng, -180, 180, '経度');
   const published = request.published === true;
+  const requestedLoginId = merchantLoginId_(request.loginId, false);
+  const requestedPassword = request.password === null || request.password === undefined ? '' : String(request.password);
+  if (requestedPassword) validateMerchantPassword_(requestedPassword);
   if (published && (!address || lat === null || lng === null)) {
     throw new Error('公開する店舗は住所・緯度・経度を入力してください。');
   }
@@ -281,26 +439,64 @@ function saveStore(token, store) {
     const sheet = getStoreSheet_();
     ensureStoreHeaders_(sheet);
     const lastRow = sheet.getLastRow();
-    const ids = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, 1).getValues().map((row) => String(row[0] || '')) : [];
+    const rows = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, STORE_HEADERS.length).getValues() : [];
+    const ids = rows.map((row) => String(row[0] || ''));
     const now = new Date();
     let storeId = requestedId;
+    let savedRow;
     if (storeId) {
       const indexes = ids.map((id, index) => id === storeId ? index : -1).filter((index) => index >= 0);
       if (indexes.length !== 1) throw new Error('更新対象の店舗が見つからないか、店舗IDが重複しています。');
       const rowNumber = indexes[0] + 2;
-      sheet.getRange(rowNumber, 2, 1, 6).setValues([[name, manager, address, lat === null ? '' : lat, lng === null ? '' : lng, published]]);
-      sheet.getRange(rowNumber, 9).setValue(now);
+      const current = rows[indexes[0]];
+      const currentLoginId = String(current[9] || '').trim().toLowerCase();
+      const hasCredentials = !!currentLoginId && !!String(current[10] || '') && !!String(current[11] || '');
+      const nextLoginId = requestedLoginId || currentLoginId;
+      if (!hasCredentials && (requestedLoginId || requestedPassword) && (!nextLoginId || !requestedPassword)) {
+        throw new Error('この店舗にはログインIDとパスワードの両方を設定してください。');
+      }
+      if (nextLoginId && (nextLoginId !== currentLoginId || !hasCredentials || requestedPassword)) {
+        ensureMerchantLoginAvailable_(rows, nextLoginId, storeId);
+      }
+      savedRow = current.slice(0, STORE_HEADERS.length);
+      savedRow[1] = name;
+      savedRow[2] = manager;
+      savedRow[3] = address;
+      savedRow[4] = lat === null ? '' : lat;
+      savedRow[5] = lng === null ? '' : lng;
+      savedRow[6] = published;
+      savedRow[8] = now;
+      if (nextLoginId && (nextLoginId !== currentLoginId || requestedPassword || !hasCredentials)) {
+        savedRow[9] = nextLoginId;
+        if (requestedPassword) {
+          savedRow[10] = merchantSalt_();
+          savedRow[11] = merchantPasswordHash_(requestedPassword, String(savedRow[10]), true);
+        }
+        savedRow[12] = merchantCredentialVersion_(current) + 1;
+        savedRow[13] = now;
+      }
+      sheet.getRange(rowNumber, 1, 1, STORE_HEADERS.length).setValues([savedRow]);
     } else {
+      if (!requestedLoginId || !requestedPassword) {
+        throw new Error('新規加盟店にはログインIDとパスワードを設定してください。');
+      }
+      ensureMerchantLoginAvailable_(rows, requestedLoginId, '');
       do {
         storeId = 'STORE-' + Utilities.getUuid().replace(/-/g, '').slice(0, 12).toUpperCase();
       } while (ids.indexOf(storeId) !== -1);
-      sheet.appendRow([storeId, name, manager, address, lat === null ? '' : lat, lng === null ? '' : lng, published, now, now]);
+      const salt = merchantSalt_();
+      savedRow = [
+        storeId, name, manager, address, lat === null ? '' : lat, lng === null ? '' : lng,
+        published, now, now, requestedLoginId, salt,
+        merchantPasswordHash_(requestedPassword, salt, true), 1, now
+      ];
+      sheet.appendRow(savedRow);
     }
     SpreadsheetApp.flush();
     CacheService.getScriptCache().put('manager:' + token, '1', MANAGER_SESSION_SECONDS);
     return {
       ok: true,
-      store: { storeId: storeId, name: name, manager: manager, address: address, lat: lat, lng: lng, published: published, updatedAt: formatManagementDate_(now) }
+      store: storeManagementResult_(savedRow)
     };
   } finally {
     lock.releaseLock();
@@ -499,42 +695,6 @@ function lookupCoupon(rawToken) {
   return couponPublicResult_(record);
 }
 
-function redeemCoupon(sessionToken, rawToken, storeName) {
-  requireAdmin_(sessionToken);
-  const token = normalizeCouponToken_(rawToken);
-  if (!token) return { ok: false, status: 'INVALID', message: 'クーポンを読み取れませんでした。' };
-
-  const lock = LockService.getScriptLock();
-  lock.waitLock(10000);
-  try {
-    const record = findCouponByHash_(sha256_(token));
-    if (!record) return { ok: false, status: 'NOT_FOUND', message: '登録されていないクーポンです。' };
-    const current = couponPublicResult_(record);
-    if (!current.ok) return current;
-
-    const redeemedAt = new Date();
-    record.sheet.getRange(record.row, 4, 1, 5).setValues([[
-      '使用済み',
-      record.values[4],
-      record.values[5],
-      redeemedAt,
-      clean_(storeName, 80) || '店舗名未入力'
-    ]]);
-    SpreadsheetApp.flush();
-    CacheService.getScriptCache().put('admin:' + sessionToken, '1', ADMIN_SESSION_SECONDS);
-    return {
-      ok: true,
-      status: 'USED',
-      message: current.amount + '円引きを適用しました。',
-      couponId: current.couponId,
-      amount: current.amount,
-      redeemedAt: formatDate_(redeemedAt, 'Asia/Tokyo')
-    };
-  } finally {
-    lock.releaseLock();
-  }
-}
-
 function couponPublicResult_(record) {
   const values = record.values;
   const status = String(values[3] || '');
@@ -614,9 +774,14 @@ function getStoreSheet_() {
 }
 
 function ensureStoreHeaders_(sheet) {
-  const range = sheet.getRange(1, 1, 1, STORE_HEADERS.length);
-  const existing = range.getDisplayValues()[0];
-  if (existing.every((value) => !value) && sheet.getLastRow() <= 1) {
+  const maxColumns = sheet.getMaxColumns();
+  if (maxColumns < STORE_HEADERS.length) {
+    sheet.insertColumnsAfter(maxColumns, STORE_HEADERS.length - maxColumns);
+  }
+  const legacyHeaders = STORE_HEADERS.slice(0, 9);
+  const legacyExisting = sheet.getRange(1, 1, 1, legacyHeaders.length).getDisplayValues()[0];
+  if (legacyExisting.every((value) => !value) && sheet.getLastRow() <= 1) {
+    const range = sheet.getRange(1, 1, 1, STORE_HEADERS.length);
     range.setValues([STORE_HEADERS]);
     range.setFontWeight('bold').setBackground('#4a1118').setFontColor('#ffffff');
     range.setHorizontalAlignment('center').setWrap(true);
@@ -626,8 +791,34 @@ function ensureStoreHeaders_(sheet) {
     sheet.setColumnWidth(4, 320);
     sheet.getRange('E:F').setNumberFormat('0.000000');
     sheet.getRange('H:I').setNumberFormat('yyyy/MM/dd HH:mm:ss');
-  } else if (existing.some((value, index) => value !== STORE_HEADERS[index])) {
+    sheet.getRange('N:N').setNumberFormat('yyyy/MM/dd HH:mm:ss');
+  } else if (legacyExisting.some((value, index) => value !== legacyHeaders[index])) {
     throw new Error('加盟店シートの列構成が異なります。管理者に確認してください。');
+  } else {
+    const addedHeaders = STORE_HEADERS.slice(9);
+    const addedRange = sheet.getRange(1, 10, 1, addedHeaders.length);
+    const addedExisting = addedRange.getDisplayValues()[0];
+    if (addedExisting.some((value, index) => value && value !== addedHeaders[index])) {
+      throw new Error('加盟店シートの認証列構成が異なります。管理者に確認してください。');
+    }
+    if (addedExisting.some((value, index) => value !== addedHeaders[index])) {
+      const lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        const missingIndexes = addedExisting.map((value, index) => value ? -1 : index).filter((index) => index >= 0);
+        for (const index of missingIndexes) {
+          const cells = sheet.getRange(2, 10 + index, lastRow - 1, 1).getValues();
+          if (cells.some((row) => row[0] !== '' && row[0] !== null)) {
+            throw new Error('加盟店シートの認証列に見出しのないデータがあります。管理者に確認してください。');
+          }
+        }
+      }
+      addedRange.setValues([addedHeaders]);
+      addedRange.setFontWeight('bold').setBackground('#4a1118').setFontColor('#ffffff');
+      addedRange.setHorizontalAlignment('center').setWrap(true);
+      sheet.setColumnWidths(10, addedHeaders.length, 160);
+      sheet.setColumnWidth(12, 580);
+      sheet.getRange('N:N').setNumberFormat('yyyy/MM/dd HH:mm:ss');
+    }
   }
 }
 
@@ -640,6 +831,7 @@ function getStoreRows_() {
 }
 
 function storeManagementResult_(row) {
+  const loginId = String(row[9] || '').trim().toLowerCase();
   return {
     storeId: String(row[0] || ''),
     name: String(row[1] || ''),
@@ -648,7 +840,9 @@ function storeManagementResult_(row) {
     lat: isValidStoreCoordinate_(row[4], -90, 90) ? Number(row[4]) : null,
     lng: isValidStoreCoordinate_(row[5], -180, 180) ? Number(row[5]) : null,
     published: row[6] === true,
-    updatedAt: formatManagementDate_(row[8])
+    updatedAt: formatManagementDate_(row[8]),
+    loginId: loginId,
+    hasLogin: !!loginId && !!String(row[10] || '') && !!String(row[11] || '')
   };
 }
 
@@ -819,6 +1013,25 @@ function requireManager_(token) {
   }
 }
 
+function requireMerchant_(token) {
+  const sessionToken = String(token || '');
+  if (!/^[a-f0-9]{64}$/.test(sessionToken)) throw new Error('SESSION_EXPIRED');
+  const cache = CacheService.getScriptCache();
+  let session;
+  try { session = JSON.parse(cache.get('merchant:' + sessionToken) || 'null'); } catch (error) { session = null; }
+  if (!session || !/^STORE-[A-F0-9]{12}$/.test(String(session.storeId || ''))) throw new Error('SESSION_EXPIRED');
+  const matches = getStoreRows_().filter((row) => String(row[0] || '') === session.storeId);
+  if (matches.length !== 1) throw new Error('SESSION_EXPIRED');
+  const row = matches[0];
+  const loginId = String(row[9] || '').trim().toLowerCase();
+  if (!loginId || !String(row[10] || '') || !String(row[11] || '') ||
+      merchantCredentialVersion_(row) !== Number(session.version)) {
+    throw new Error('SESSION_EXPIRED');
+  }
+  cache.put('merchant:' + sessionToken, JSON.stringify({ storeId: session.storeId, version: session.version }), MERCHANT_SESSION_SECONDS);
+  return { storeId: session.storeId, storeName: String(row[1] || ''), loginId: loginId };
+}
+
 function isCouponActive_(status, expiryValue, now) {
   if (status !== '未使用') return false;
   const expiryTime = couponExpiryTime_(expiryValue);
@@ -858,6 +1071,57 @@ function safeStoreText_(value, maxLength, label, required) {
   if (required && !text) throw new Error(label + 'を入力してください。');
   if (/^[=+\-@]/.test(text)) throw new Error(label + 'の先頭に使用できない記号があります。');
   return text;
+}
+
+function merchantLoginId_(value, required) {
+  const loginId = String(value === null || value === undefined ? '' : value).trim().toLowerCase();
+  if (!loginId && !required) return '';
+  if (!/^[a-z0-9][a-z0-9._-]{3,39}$/.test(loginId)) {
+    throw new Error('ログインIDは英数字で始まる4～40文字にしてください。使える記号は . _ - です。');
+  }
+  if (loginId === ADMIN_ID || loginId === MANAGER_ID) {
+    throw new Error('そのログインIDは利用できません。');
+  }
+  return loginId;
+}
+
+function validateMerchantPassword_(password) {
+  if (password.length < 12 || password.length > 128 || /[\u0000-\u001F\u007F]/.test(password)) {
+    throw new Error('パスワードは制御文字を含まない12～128文字にしてください。');
+  }
+}
+
+function ensureMerchantLoginAvailable_(rows, loginId, excludingStoreId) {
+  if (rows.some((row) => String(row[0] || '') !== excludingStoreId && String(row[9] || '').trim().toLowerCase() === loginId)) {
+    throw new Error('そのログインIDは別の店舗で使用されています。');
+  }
+}
+
+function merchantCredentialVersion_(row) {
+  const version = Number(row[12]);
+  return Number.isSafeInteger(version) && version >= 0 ? version : 0;
+}
+
+function merchantSalt_() {
+  return Utilities.getUuid().replace(/-/g, '').toLowerCase();
+}
+
+function merchantPasswordHash_(password, salt, allowPepperCreation) {
+  const properties = PropertiesService.getScriptProperties();
+  let pepper = properties.getProperty('MERCHANT_PASSWORD_PEPPER') || '';
+  if (!pepper && allowPepperCreation) {
+    pepper = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').toLowerCase();
+    properties.setProperty('MERCHANT_PASSWORD_PEPPER', pepper);
+  }
+  if (!pepper) throw new Error('加盟店の認証設定が見つかりません。管理者に確認してください。');
+  const key = pepper + ':' + password;
+  let digest = 'chanko-merchant-v1:' + salt;
+  for (let index = 0; index < MERCHANT_PASSWORD_ROUNDS; index += 1) {
+    digest = Utilities.computeHmacSha256Signature(digest, key)
+      .map((byte) => ('0' + ((byte + 256) % 256).toString(16)).slice(-2))
+      .join('');
+  }
+  return 'hmac-sha256-v1$' + MERCHANT_PASSWORD_ROUNDS + '$' + digest;
 }
 
 function isValidStoreCoordinate_(value, min, max) {
@@ -977,7 +1241,7 @@ function response_(status) {
 }
 
 function lookupCouponForMerchant(sessionToken, input) {
-  requireAdmin_(sessionToken);
+  requireMerchant_(sessionToken);
   if (!normalizeCouponToken_(input) && !normalizeCouponId_(input)) {
     return { ok: false, status: 'INVALID', message: 'QRコードまたはクーポンIDを確認してください。' };
   }
@@ -989,8 +1253,8 @@ function lookupCouponForMerchant(sessionToken, input) {
   return couponPublicResult_(record);
 }
 
-function redeemCouponByMerchant(sessionToken, input, storeName) {
-  requireAdmin_(sessionToken);
+function redeemCouponByMerchant(sessionToken, input) {
+  requireMerchant_(sessionToken);
   if (!normalizeCouponToken_(input) && !normalizeCouponId_(input)) {
     return { ok: false, status: 'INVALID', message: 'QRコードまたはクーポンIDを確認してください。' };
   }
@@ -998,6 +1262,7 @@ function redeemCouponByMerchant(sessionToken, input, storeName) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
+    const merchant = requireMerchant_(sessionToken);
     const record = findCouponForMerchant_(input);
     if (record && record.duplicate) {
       return { ok: false, status: 'INVALID', message: '同じIDのクーポンが複数あります。管理者に確認してください。' };
@@ -1012,10 +1277,9 @@ function redeemCouponByMerchant(sessionToken, input, storeName) {
       record.values[4],
       record.values[5],
       redeemedAt,
-      clean_(storeName, 80) || '店舗名未入力'
+      merchant.storeName
     ]]);
     SpreadsheetApp.flush();
-    CacheService.getScriptCache().put('admin:' + sessionToken, '1', ADMIN_SESSION_SECONDS);
     return {
       ok: true,
       status: 'USED',

@@ -3,16 +3,16 @@
 <head>
   <base target="_top"><meta charset="utf-8">
   <style>
-    :root{color-scheme:light;--deep:#4a1118;--red:#8f1f28;--green:#176b46;--cream:#fff9eb;--ink:#2d2520;--muted:#756b63;--line:#eadbc2}*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",sans-serif;color:var(--ink);background:radial-gradient(circle at 12% 0%,#fff3c9,transparent 30%),linear-gradient(135deg,#f8ead0,#fffdf8 52%,#f3e2c3)}button,input{font:inherit}.hidden{display:none!important}.shell{min-height:100vh;display:grid;place-items:center;padding:22px}.card{width:min(650px,100%);background:rgba(255,255,255,.95);border:1px solid var(--line);border-radius:26px;box-shadow:0 18px 60px rgba(74,17,24,.16);padding:30px}.eyebrow{color:var(--red);font-weight:800;letter-spacing:.12em}h1{font-family:serif;color:var(--deep);margin:8px 0;font-size:clamp(28px,6vw,42px)}p{line-height:1.7}.grid{display:grid;gap:15px;margin-top:20px}label{display:grid;gap:7px;font-weight:700}input{width:100%;padding:13px 14px;border:1px solid #d8c9b2;border-radius:12px}.btn{border:0;border-radius:999px;padding:14px 20px;font-weight:800;cursor:pointer}.primary{background:linear-gradient(135deg,var(--red),var(--deep));color:#fff}.success{background:linear-gradient(135deg,#25825b,var(--green));color:#fff}.secondary{background:#f1e5d2;color:var(--deep)}.btn:disabled{opacity:.55;cursor:wait}.error{min-height:1.5em;color:#b42318;margin-top:10px;font-weight:700}#reader{margin:18px 0;border-radius:18px;overflow:hidden}.manual{display:flex;gap:9px}.manual input{flex:1}.result{margin-top:20px;padding:22px;border:2px solid var(--line);border-radius:20px;text-align:center;background:#fff}.result.available{border-color:#79bd9a;background:#f0fff7}.result.used,.result.expired{border-color:#e6a09a;background:#fff5f4}.amount{font-family:serif;font-size:clamp(40px,10vw,68px);font-weight:900;color:var(--red);margin:8px 0}.status{font-size:22px;font-weight:900}.meta{color:var(--muted);line-height:1.8}.redeem{width:100%;margin-top:18px;font-size:20px}.notice{font-weight:800;color:var(--red)}@media(max-width:560px){.card{padding:22px 16px}.manual{display:grid}}
+    :root{color-scheme:light;--deep:#4a1118;--red:#8f1f28;--green:#176b46;--cream:#fff9eb;--ink:#2d2520;--muted:#756b63;--line:#eadbc2}*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",sans-serif;color:var(--ink);background:radial-gradient(circle at 12% 0%,#fff3c9,transparent 30%),linear-gradient(135deg,#f8ead0,#fffdf8 52%,#f3e2c3)}button,input{font:inherit}.hidden{display:none!important}.shell{min-height:100vh;display:grid;place-items:center;padding:22px}.card{width:min(650px,100%);background:rgba(255,255,255,.95);border:1px solid var(--line);border-radius:26px;box-shadow:0 18px 60px rgba(74,17,24,.16);padding:30px}.eyebrow{color:var(--red);font-weight:800;letter-spacing:.12em}h1{font-family:serif;color:var(--deep);margin:8px 0;font-size:clamp(28px,6vw,42px)}p{line-height:1.7}.grid{display:grid;gap:15px;margin-top:20px}label{display:grid;gap:7px;font-weight:700}input{width:100%;padding:13px 14px;border:1px solid #d8c9b2;border-radius:12px}.btn{border:0;border-radius:999px;padding:14px 20px;font-weight:800;cursor:pointer}.primary{background:linear-gradient(135deg,var(--red),var(--deep));color:#fff}.success{background:linear-gradient(135deg,#25825b,var(--green));color:#fff}.secondary{background:#f1e5d2;color:var(--deep)}.btn:disabled{opacity:.55;cursor:wait}.error{min-height:1.5em;color:#b42318;margin-top:10px;font-weight:700}.notice{color:var(--green);font-weight:800}.manual{display:flex;gap:9px}.manual input{flex:1}.result{margin-top:20px;padding:22px;border:2px solid var(--line);border-radius:20px;text-align:center;background:#fff}.result.available{border-color:#79bd9a;background:#f0fff7}.result.used,.result.expired{border-color:#e6a09a;background:#fff5f4}.amount{font-family:serif;font-size:clamp(40px,10vw,68px);font-weight:900;color:var(--red);margin:8px 0}.status{font-size:22px;font-weight:900}.meta{color:var(--muted);line-height:1.8}.redeem{width:100%;margin-top:18px;font-size:20px}.account-actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 22px}.account-actions .btn{padding:9px 16px}.account-panel{border:1px solid var(--line);background:#fffaf1;border-radius:18px;padding:18px;margin:16px 0 22px}.account-panel h2{margin:0;color:var(--deep);font-family:serif}.account-panel .grid{margin-top:12px}.hint{font-size:13px;color:var(--muted);font-weight:400;line-height:1.6}.account-buttons{display:flex;flex-wrap:wrap;gap:8px}.account-buttons .btn{flex:1}@media(max-width:560px){.card{padding:22px 16px}.manual{display:grid}.account-buttons{display:grid}}
   </style>
 </head>
 <body>
-  <section id="loginView" class="shell"><div class="card"><div class="eyebrow">加盟店スタッフ専用</div><h1>クーポン確認</h1><p>使用済み処理は取り消せません。会計時にお客様のQRを読み取ってください。</p><form id="loginForm" class="grid"><label>ID<input id="loginId" autocomplete="username" required></label><label>パスワード<input id="loginPassword" type="password" autocomplete="current-password" required></label><label>店舗名<input id="storeName" maxlength="80" placeholder="例：千駄木○○商店" required></label><button id="loginButton" class="btn primary" type="submit">ログインして読み取る</button></form><div id="loginError" class="error" role="alert"></div></div></section>
-  <section id="scanView" class="shell hidden"><div class="card"><div class="eyebrow">千駄木ちゃんこ祭り</div><h1>クーポンを確認する</h1><p id="storeLabel"></p><p>カメラは画面上の「カメラで読み取る」から起動できます。読み取れない場合は、お客様の画面にあるクーポンIDを入力してください。</p><div class="manual"><input id="manualCode" aria-label="クーポンIDまたはQRのコード" placeholder="例：SNDG-20261011-9CE5E9BC"><button id="checkButton" class="btn secondary" type="button">確認</button></div><div id="scanError" class="error" role="alert"></div><div id="result" class="result hidden"><div id="status" class="status"></div><div id="amount" class="amount"></div><div id="message"></div><div id="meta" class="meta"></div><button id="redeemButton" class="btn success redeem hidden" type="button">このクーポンを使用済みにする</button></div></div></section>
+  <section id="loginView" class="shell"><div class="card"><div class="eyebrow">加盟店スタッフ専用</div><h1>クーポン確認</h1><p>使用済み処理は取り消せません。会計時にお客様のQRを読み取ってください。</p><form id="loginForm" class="grid"><label>加盟店ID<input id="loginId" autocomplete="username" required></label><label>パスワード<input id="loginPassword" type="password" autocomplete="current-password" required></label><button id="loginButton" class="btn primary" type="submit">ログインして読み取る</button></form><div id="loginError" class="error" role="alert"></div><p id="loginNotice" class="notice hidden" role="status"></p></div></section>
+  <section id="scanView" class="shell hidden"><div class="card"><div class="eyebrow">千駄木ちゃんこ祭り</div><h1>クーポンを確認する</h1><p id="storeLabel"></p><div class="account-actions"><button id="accountToggle" class="btn secondary" type="button" aria-expanded="false" aria-controls="accountPanel">加盟店ID・パスワードを変更</button><button id="logoutButton" class="btn secondary" type="button">ログアウト</button></div><div id="accountPanel" class="account-panel hidden"><h2>アカウント設定</h2><p class="hint">変更には現在のパスワードが必要です。新しいパスワードを空欄にすると、今のパスワードを維持します。</p><form id="accountForm" class="grid"><label>新しい加盟店ID<input id="newLoginId" autocomplete="username" minlength="4" maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9._\-]{3,39}" required><span class="hint">先頭は半角英数字、以降は半角英数字と . _ - のみで4～40文字。admin・managerは使えません。</span></label><label>現在のパスワード<input id="currentPassword" type="password" autocomplete="current-password" required></label><label>新しいパスワード<input id="newPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128"><span class="hint">変更する場合は12文字以上。変更しない場合は空欄。</span></label><label>新しいパスワード（確認）<input id="newPasswordConfirm" type="password" autocomplete="new-password" minlength="12" maxlength="128"></label><div class="account-buttons"><button id="accountSave" class="btn primary" type="submit">変更を保存</button><button id="accountCancel" class="btn secondary" type="button">閉じる</button></div></form><div id="accountError" class="error" role="alert"></div></div><p>カメラは画面上の「カメラで読み取る」から起動できます。読み取れない場合は、お客様の画面にあるクーポンIDを入力してください。</p><div class="manual"><input id="manualCode" aria-label="クーポンIDまたはQRのコード" placeholder="例：SNDG-20261011-9CE5E9BC"><button id="checkButton" class="btn secondary" type="button">確認</button></div><div id="scanError" class="error" role="alert"></div><div id="result" class="result hidden"><div id="status" class="status"></div><div id="amount" class="amount"></div><div id="message"></div><div id="meta" class="meta"></div><button id="redeemButton" class="btn success redeem hidden" type="button">このクーポンを使用済みにする</button></div></div></section>
   <script>
     const $=id=>document.getElementById(id);
     const siteOrigin='https://wed20220202-collab.github.io';
-    let sessionToken='',storeName='',activeToken='',queryToken='',bridgeNonce='',locationLoaded=false,lookupSerial=0,redeeming=false;
+    let sessionToken='',storeName='',loginId='',activeToken='',queryToken='',bridgeNonce='',locationLoaded=false,lookupSerial=0,redeeming=false,accountSaving=false;
     google.script.url.getLocation(locationInfo=>{
       queryToken=(locationInfo.parameter&&locationInfo.parameter.coupon)||'';
       bridgeNonce=(locationInfo.parameter&&locationInfo.parameter.bridge)||'';
@@ -30,12 +30,107 @@
       if(!data||data.type!=='coupon-scan'||data.nonce!==bridgeNonce)return;
       checkCoupon(data.code);
     });
-    $('loginForm').addEventListener('submit',e=>{e.preventDefault();const b=$('loginButton');b.disabled=true;b.textContent='確認しています…';$('loginError').textContent='';google.script.run.withSuccessHandler(result=>{b.disabled=false;b.textContent='ログインして読み取る';if(!result.ok){$('loginError').textContent=result.message;return}sessionToken=result.token;storeName=$('storeName').value.trim();$('storeLabel').textContent='利用店舗：'+storeName;$('loginView').classList.add('hidden');$('scanView').classList.remove('hidden');if(locationLoaded&&queryToken)checkCoupon(queryToken);announceReady()}).withFailureHandler(err=>{b.disabled=false;b.textContent='ログインして読み取る';$('loginError').textContent=err.message||'ログインできませんでした。'}).adminLogin($('loginId').value,$('loginPassword').value)});
+    $('loginForm').addEventListener('submit',e=>{
+      e.preventDefault();
+      const button=$('loginButton');
+      button.disabled=true;
+      button.textContent='確認しています…';
+      $('loginError').textContent='';
+      $('loginNotice').classList.add('hidden');
+      google.script.run.withSuccessHandler(result=>{
+        button.disabled=false;
+        button.textContent='ログインして読み取る';
+        if(!result||!result.ok){$('loginError').textContent=(result&&result.message)||'ログインできませんでした。';return}
+        sessionToken=result.token;
+        storeName=result.storeName;
+        loginId=result.loginId;
+        $('loginPassword').value='';
+        $('storeLabel').textContent='利用店舗：'+storeName+'（ID：'+loginId+'）';
+        $('newLoginId').value=loginId;
+        $('loginView').classList.add('hidden');
+        $('scanView').classList.remove('hidden');
+        if(locationLoaded&&queryToken)checkCoupon(queryToken);
+        announceReady();
+      }).withFailureHandler(err=>{
+        button.disabled=false;
+        button.textContent='ログインして読み取る';
+        $('loginError').textContent=(err&&err.message)||'ログインできませんでした。';
+      }).merchantLogin($('loginId').value.trim(),$('loginPassword').value);
+    });
+    function closeAccountPanel(){
+      $('accountPanel').classList.add('hidden');
+      $('accountToggle').setAttribute('aria-expanded','false');
+      $('currentPassword').value='';
+      $('newPassword').value='';
+      $('newPasswordConfirm').value='';
+      $('accountError').textContent='';
+    }
+    function logoutSession(notice){
+      const oldToken=sessionToken;
+      sessionToken='';storeName='';loginId='';activeToken='';
+      lookupSerial++;
+      $('scanView').classList.add('hidden');
+      $('loginView').classList.remove('hidden');
+      $('result').classList.add('hidden');
+      $('manualCode').value='';
+      $('scanError').textContent='';
+      $('loginPassword').value='';
+      $('loginError').textContent='';
+      closeAccountPanel();
+      $('loginNotice').textContent=notice||'';
+      $('loginNotice').classList.toggle('hidden',!notice);
+      if(locationLoaded&&bridgeNonce)window.top.postMessage({type:'coupon-reader-logout',nonce:bridgeNonce},siteOrigin);
+      if(oldToken)google.script.run.withFailureHandler(()=>{}).merchantLogout(oldToken);
+    }
+    $('logoutButton').addEventListener('click',()=>{if(!redeeming&&!accountSaving)logoutSession('ログアウトしました。')});
+    $('accountToggle').addEventListener('click',()=>{
+      if(redeeming||accountSaving)return;
+      const open=$('accountPanel').classList.contains('hidden');
+      if(open){$('newLoginId').value=loginId;$('accountPanel').classList.remove('hidden');$('accountToggle').setAttribute('aria-expanded','true');$('newLoginId').focus()}
+      else closeAccountPanel();
+    });
+    $('accountCancel').addEventListener('click',closeAccountPanel);
+    function setAccountSaving(busy){
+      accountSaving=busy;
+      $('accountSave').disabled=busy;
+      $('accountSave').textContent=busy?'変更しています…':'変更を保存';
+      $('accountCancel').disabled=busy;
+      $('accountToggle').disabled=busy;
+      $('logoutButton').disabled=busy;
+      $('checkButton').disabled=busy;
+      $('manualCode').disabled=busy;
+      $('redeemButton').disabled=busy;
+    }
+    $('accountForm').addEventListener('submit',e=>{
+      e.preventDefault();
+      if(!sessionToken||accountSaving||redeeming)return;
+      const nextId=$('newLoginId').value.trim();
+      const currentPassword=$('currentPassword').value;
+      const nextPassword=$('newPassword').value;
+      $('accountError').textContent='';
+      if(!nextId){$('accountError').textContent='加盟店IDを入力してください。';return}
+      if(!currentPassword){$('accountError').textContent='現在のパスワードを入力してください。';return}
+      if(nextId===loginId&&!nextPassword){$('accountError').textContent='変更するIDまたはパスワードを入力してください。';return}
+      if(nextPassword!==$('newPasswordConfirm').value){$('accountError').textContent='新しいパスワードが一致しません。';return}
+      if(nextPassword&&nextPassword.length<12){$('accountError').textContent='新しいパスワードは12文字以上にしてください。';return}
+      setAccountSaving(true);
+      const requestSession=sessionToken;
+      google.script.run.withSuccessHandler(result=>{
+        setAccountSaving(false);
+        if(sessionToken!==requestSession)return;
+        if(!result||!result.ok){$('accountError').textContent=(result&&result.message)||'変更できませんでした。';return}
+        $('loginId').value=result.loginId||nextId;
+        logoutSession('ID・パスワードを変更しました。新しい情報で再ログインしてください。');
+      }).withFailureHandler(err=>{
+        setAccountSaving(false);
+        if(sessionToken===requestSession)$('accountError').textContent=(err&&err.message)||'変更できませんでした。';
+      }).merchantUpdateCredentials(requestSession,currentPassword,nextId,nextPassword);
+    });
     $('checkButton').addEventListener('click',()=>checkCoupon($('manualCode').value));
     function extractToken(value){const text=String(value||'').trim().slice(0,500);try{const url=new URL(text);return url.searchParams.get('c')||url.searchParams.get('coupon')||text}catch(e){return text}}
-    function checkCoupon(value){if(redeeming)return;const token=extractToken(value);if(!token)return;const serial=++lookupSerial;activeToken='';$('manualCode').value=token;$('scanError').textContent='';$('result').classList.add('hidden');$('redeemButton').classList.add('hidden');google.script.run.withSuccessHandler(result=>{if(serial===lookupSerial&&!redeeming)showResult(result,token)}).withFailureHandler(err=>{if(serial===lookupSerial&&!redeeming)$('scanError').textContent=err.message||'クーポンを確認できませんでした。'}).lookupCouponForMerchant(sessionToken,token)}
+    function checkCoupon(value){if(!sessionToken||redeeming||accountSaving)return;const token=extractToken(value);if(!token)return;const serial=++lookupSerial,requestSession=sessionToken;activeToken='';$('manualCode').value=token;$('scanError').textContent='';$('result').classList.add('hidden');$('redeemButton').classList.add('hidden');google.script.run.withSuccessHandler(result=>{if(serial===lookupSerial&&!redeeming&&sessionToken===requestSession)showResult(result,token)}).withFailureHandler(err=>{if(serial===lookupSerial&&!redeeming&&sessionToken===requestSession)$('scanError').textContent=(err&&err.message)||'クーポンを確認できませんでした。'}).lookupCouponForMerchant(requestSession,token)}
     function showResult(data,token){activeToken=token;$('result').className='result '+String(data.status||'').toLowerCase();$('result').classList.remove('hidden');$('status').textContent=data.status==='AVAILABLE'?'利用できます':data.status==='USED'?'使用済み':data.status==='EXPIRED'?'期限切れ':'利用できません';$('amount').textContent=data.amount?data.amount.toLocaleString('ja-JP')+'円引き':'';$('message').textContent=data.message||'';$('meta').textContent=(data.couponId?'ID：'+data.couponId+'　':'')+(data.expiresAt?'有効期限：'+data.expiresAt:'')+(data.redeemedAt?'　利用日時：'+data.redeemedAt:'');$('redeemButton').classList.toggle('hidden',!data.ok)}
-    $('redeemButton').addEventListener('click',()=>{if(!activeToken||redeeming)return;if(!confirm('この操作は取り消せません。会計で割引を適用しましたか？'))return;redeeming=true;lookupSerial++;const token=activeToken;const b=$('redeemButton');b.disabled=true;b.textContent='使用済みにしています…';$('checkButton').disabled=true;$('manualCode').disabled=true;google.script.run.withSuccessHandler(result=>{redeeming=false;b.disabled=false;b.textContent='このクーポンを使用済みにする';$('checkButton').disabled=false;$('manualCode').disabled=false;showResult(result,token);if(result.ok){$('status').textContent='使用済みにしました';b.classList.add('hidden')}}).withFailureHandler(err=>{redeeming=false;b.disabled=false;b.textContent='このクーポンを使用済みにする';$('checkButton').disabled=false;$('manualCode').disabled=false;$('scanError').textContent=err.message||'処理できませんでした。'}).redeemCouponByMerchant(sessionToken,token,storeName)});
+    $('redeemButton').addEventListener('click',()=>{if(!sessionToken||!activeToken||redeeming||accountSaving)return;if(!confirm('この操作は取り消せません。会計で割引を適用しましたか？'))return;redeeming=true;lookupSerial++;const token=activeToken,requestSession=sessionToken;const b=$('redeemButton');b.disabled=true;b.textContent='使用済みにしています…';$('checkButton').disabled=true;$('manualCode').disabled=true;$('logoutButton').disabled=true;$('accountToggle').disabled=true;google.script.run.withSuccessHandler(result=>{redeeming=false;b.disabled=false;b.textContent='このクーポンを使用済みにする';$('checkButton').disabled=false;$('manualCode').disabled=false;$('logoutButton').disabled=false;$('accountToggle').disabled=false;if(sessionToken!==requestSession)return;showResult(result,token);if(result.ok){$('status').textContent='使用済みにしました';b.classList.add('hidden')}}).withFailureHandler(err=>{redeeming=false;b.disabled=false;b.textContent='このクーポンを使用済みにする';$('checkButton').disabled=false;$('manualCode').disabled=false;$('logoutButton').disabled=false;$('accountToggle').disabled=false;if(sessionToken===requestSession)$('scanError').textContent=(err&&err.message)||'処理できませんでした。'}).redeemCouponByMerchant(requestSession,token)});
   </script>
 </body>
 </html>
