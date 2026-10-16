@@ -26,7 +26,11 @@ const COUPON_HEADERS = [
   '備考'
 ];
 const STORE_HEADERS = ['店舗ID', '店舗名', '店舗責任者', '住所', '緯度', '経度', '公開', '登録日時', '更新日時'];
-const COUPON_AUDIT_HEADERS = ['操作日時', '操作', '対象件数', '操作アカウント', '結果', '備考'];
+const COUPON_AUDIT_HEADERS = [
+  '操作日時', '操作', '対象件数', '操作アカウント', '結果', '備考',
+  '操作ID', 'クーポンID', '割引額（円）', '変更前の状態', '変更後の状態', 'クーポンDB行'
+];
+const COUPON_AUDIT_PROTECTION_DESCRIPTION = '千駄木ちゃんこ祭り クーポン操作履歴（システム保護）';
 const HEADERS = [
   '受付日時',
   '味',
@@ -227,6 +231,7 @@ function getManagementData(token, page) {
   const start = (currentPage - 1) * pageSize;
   const stores = getStoreRows_().map(storeManagementResult_);
   stores.sort((left, right) => left.name.localeCompare(right.name, 'ja'));
+  const audit = getCouponAuditSnapshot_();
   CacheService.getScriptCache().put('manager:' + token, '1', MANAGER_SESSION_SECONDS);
   return {
     stats: stats,
@@ -234,6 +239,8 @@ function getManagementData(token, page) {
     activeCoupons: activeCoupons.slice(start, start + pageSize),
     pagination: { page: currentPage, pageSize: pageSize, totalPages: totalPages, total: activeCoupons.length },
     stores: stores,
+    auditLogs: audit.logs,
+    auditWarning: audit.warning,
     fetchedAt: Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss')
   };
 }
@@ -333,29 +340,85 @@ function revokeActiveCoupons(token, expectedCount, confirmation, expectedDigest)
     }
     if (!activeIndexes.length) return { ok: true, revoked: 0, at: Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss') };
 
+    // Never change coupon states if the append-only audit cannot first be protected and written.
     const auditSheet = getCouponAuditSheet_();
     ensureCouponAuditHeaders_(auditSheet);
+    ensureCouponAuditProtection_(auditSheet);
     const operatedAt = new Date();
-    auditSheet.appendRow([operatedAt, '未使用クーポン全件無効化', activeIndexes.length, MANAGER_ID, '開始', '削除せず状態を無効に変更']);
-    const auditRow = auditSheet.getLastRow();
+    const batchId = 'REV-' + Utilities.formatDate(operatedAt, 'Asia/Tokyo', 'yyyyMMddHHmmss') + '-' + Utilities.getUuid().replace(/-/g, '').slice(0, 8).toUpperCase();
+    const targets = activeIndexes.map((index) => ({
+      row: index + 2,
+      couponId: String(couponRows[index][0]),
+      amount: Number(couponRows[index][2]) || 0,
+      previousStatus: String(couponRows[index][3] || '')
+    }));
     try {
-      activeIndexes.forEach((index) => { couponRows[index][3] = '無効'; });
-      sheet.getRange(2, 4, count, 1).setValues(couponRows.map((row) => [row[3]]));
-      SpreadsheetApp.flush();
-      auditSheet.getRange(auditRow, 5).setValue('完了');
-      SpreadsheetApp.flush();
+      appendCouponAuditRows_(auditSheet, targets.map((target) => [
+        operatedAt, '未使用クーポン全件無効化', targets.length, MANAGER_ID, '開始',
+        '対象券を記録。DBへの反映は未確認', batchId, target.couponId, target.amount,
+        target.previousStatus, '無効', target.row
+      ]));
     } catch (error) {
       try {
-        auditSheet.getRange(auditRow, 5).setValue('要確認');
-        auditSheet.getRange(auditRow, 6).setValue('処理中にエラー。クーポンDBの状態を確認してください。');
-        SpreadsheetApp.flush();
+        appendCouponAuditRows_(auditSheet, [[
+          new Date(), '未使用クーポン全件無効化', targets.length, MANAGER_ID, '要確認',
+          '開始履歴の記録確認に失敗。クーポンDBは変更していません。',
+          batchId, '', '', '', '', ''
+        ]]);
       } catch (auditError) {
         console.error(auditError);
       }
-      throw error;
+      throw new Error('操作履歴の記録を確認できないため、クーポンは無効化していません。操作ID ' + batchId + ' を確認してください。');
+    }
+
+    let dbVerified = false;
+    try {
+      writeCouponStatuses_(sheet, targets, '無効');
+      SpreadsheetApp.flush();
+      const resultRows = sheet.getRange(2, 1, count, 4).getValues();
+      dbVerified = targets.every((target) => {
+        const actual = resultRows[target.row - 2];
+        return actual && String(actual[0]) === target.couponId && String(actual[3]) === '無効';
+      });
+      if (!dbVerified) throw new Error('クーポンDBの反映確認に失敗しました。');
+
+      const completedAt = new Date();
+      appendCouponAuditRows_(auditSheet, targets.map((target) => [
+        completedAt, '未使用クーポン全件無効化', targets.length, MANAGER_ID, '完了',
+        'クーポンDBで無効を確認', batchId, target.couponId, target.amount,
+        target.previousStatus, '無効', target.row
+      ]));
+    } catch (error) {
+      // A Sheets write can fail after partial work. Keep the original start rows intact;
+      // append a separate alert instead of editing history or claiming a rollback.
+      try {
+        appendCouponAuditRows_(auditSheet, [[
+          new Date(), '未使用クーポン全件無効化', targets.length, MANAGER_ID, '要確認',
+          '処理中にエラー。クーポンDBと操作IDの対象券を照合してください。',
+          batchId, '', '', '', '', ''
+        ]]);
+      } catch (auditError) {
+        console.error(auditError);
+      }
+      throw new Error(dbVerified
+        ? 'クーポンは無効になりましたが、完了履歴の記録に失敗しました。操作ID ' + batchId + ' を管理者が確認してください。'
+        : '無効化の途中でエラーが発生しました。操作ID ' + batchId + ' の対象券とDBの状態を管理者が確認してください。');
     }
     CacheService.getScriptCache().put('manager:' + token, '1', MANAGER_SESSION_SECONDS);
-    return { ok: true, revoked: activeIndexes.length, at: formatManagementDate_(operatedAt) };
+    return { ok: true, revoked: targets.length, at: formatManagementDate_(operatedAt), batchId: batchId };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function setupCouponAuditProtection() {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sheet = getCouponAuditSheet_();
+    ensureCouponAuditHeaders_(sheet);
+    ensureCouponAuditProtection_(sheet);
+    return { ok: true, sheetName: sheet.getName(), protected: true, columns: COUPON_AUDIT_HEADERS.length };
   } finally {
     lock.releaseLock();
   }
@@ -595,18 +658,127 @@ function getCouponAuditSheet_() {
 }
 
 function ensureCouponAuditHeaders_(sheet) {
-  const range = sheet.getRange(1, 1, 1, COUPON_AUDIT_HEADERS.length);
-  const existing = range.getDisplayValues()[0];
-  if (existing.every((value) => !value) && sheet.getLastRow() <= 1) {
+  const legacyHeaders = COUPON_AUDIT_HEADERS.slice(0, 6);
+  const legacyRange = sheet.getRange(1, 1, 1, legacyHeaders.length);
+  const legacyExisting = legacyRange.getDisplayValues()[0];
+  if (legacyExisting.every((value) => !value) && sheet.getLastRow() <= 1) {
+    const range = sheet.getRange(1, 1, 1, COUPON_AUDIT_HEADERS.length);
     range.setValues([COUPON_AUDIT_HEADERS]);
     range.setFontWeight('bold').setBackground('#4a1118').setFontColor('#ffffff');
     range.setHorizontalAlignment('center').setWrap(true);
     sheet.setFrozenRows(1);
     sheet.setColumnWidths(1, COUPON_AUDIT_HEADERS.length, 170);
     sheet.setColumnWidth(6, 320);
+    sheet.setColumnWidth(7, 280);
+    sheet.setColumnWidth(8, 250);
     sheet.getRange('A:A').setNumberFormat('yyyy/MM/dd HH:mm:ss');
-  } else if (existing.some((value, index) => value !== COUPON_AUDIT_HEADERS[index])) {
+    sheet.getRange('I:I').setNumberFormat('#,##0');
+  } else if (legacyExisting.some((value, index) => value !== legacyHeaders[index])) {
     throw new Error('クーポン操作履歴シートの列構成が異なります。管理者に確認してください。');
+  } else {
+    // Keep old six-column audit entries untouched; add only the new columns.
+    const addedHeaders = COUPON_AUDIT_HEADERS.slice(6);
+    const addedRange = sheet.getRange(1, 7, 1, addedHeaders.length);
+    const addedExisting = addedRange.getDisplayValues()[0];
+    if (addedExisting.every((value) => !value)) {
+      const lastRow = sheet.getLastRow();
+      if (lastRow > 1 && sheet.getRange(2, 7, lastRow - 1, addedHeaders.length)
+        .getDisplayValues().some((row) => row.some((value) => value))) {
+        throw new Error('クーポン操作履歴の追加列に既存データがあります。管理者に確認してください。');
+      }
+      addedRange.setValues([addedHeaders]);
+      addedRange.setFontWeight('bold').setBackground('#4a1118').setFontColor('#ffffff');
+      addedRange.setHorizontalAlignment('center').setWrap(true);
+      sheet.setColumnWidths(7, addedHeaders.length, 170);
+      sheet.setColumnWidth(7, 280);
+      sheet.setColumnWidth(8, 250);
+      sheet.getRange('I:I').setNumberFormat('#,##0');
+    } else if (addedExisting.some((value, index) => value !== addedHeaders[index])) {
+      throw new Error('クーポン操作履歴シートの追加列構成が異なります。管理者に確認してください。');
+    }
+  }
+}
+
+function ensureCouponAuditProtection_(sheet) {
+  const protections = sheet.getProtections(SpreadsheetApp.ProtectionType.SHEET);
+  let protection = protections.find((item) => item.getDescription() === COUPON_AUDIT_PROTECTION_DESCRIPTION);
+  if (!protection) {
+    if (protections.length) {
+      throw new Error('クーポン操作履歴シートには別の編集保護があります。設定を確認してください。');
+    }
+    protection = sheet.protect().setDescription(COUPON_AUDIT_PROTECTION_DESCRIPTION);
+  }
+  protection.setWarningOnly(false);
+  protection.setUnprotectedRanges([]);
+  // protect() alone is not restrictive until the editor list or domain setting changes.
+  protection.addEditor(Session.getEffectiveUser());
+  protection.removeEditors(protection.getEditors());
+  if (protection.canDomainEdit()) protection.setDomainEdit(false);
+  if (protection.isWarningOnly() || protection.getUnprotectedRanges().length ||
+    protection.canDomainEdit() || protection.getTargetAudiences().length) {
+    throw new Error('クーポン操作履歴シートの編集保護を設定できませんでした。');
+  }
+  return protection;
+}
+
+function appendCouponAuditRows_(sheet, rows) {
+  if (!rows.length) return;
+  const firstRow = sheet.getLastRow() + 1;
+  sheet.getRange(firstRow, 1, rows.length, COUPON_AUDIT_HEADERS.length).setValues(rows);
+  SpreadsheetApp.flush();
+  const written = sheet.getRange(firstRow, 1, rows.length, COUPON_AUDIT_HEADERS.length).getValues();
+  if (written.length !== rows.length || written.some((row, index) =>
+    row.some((value, column) => snapshotField_(value) !== snapshotField_(rows[index][column])))) {
+    throw new Error('クーポン操作履歴の記録確認に失敗しました。');
+  }
+}
+
+function writeCouponStatuses_(sheet, targets, status) {
+  // RangeList updates non-adjacent coupon rows without overwriting other states.
+  for (let index = 0; index < targets.length; index += 100) {
+    sheet.getRangeList(targets.slice(index, index + 100).map((target) => 'D' + target.row)).setValue(status);
+  }
+}
+
+function getCouponAuditSnapshot_() {
+  let sheet;
+  try {
+    sheet = getCouponAuditSheet_();
+    ensureCouponAuditHeaders_(sheet);
+  } catch (error) {
+    console.error(error);
+    return { logs: [], warning: '操作履歴シートを確認できません。管理者に連絡してください。' };
+  }
+  let warning = '';
+  try {
+    ensureCouponAuditProtection_(sheet);
+  } catch (error) {
+    console.error(error);
+    warning = '操作履歴シートの編集保護を確認できません。無効化は実行しないでください。';
+  }
+  try {
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return { logs: [], warning: warning };
+    const firstRow = Math.max(2, lastRow - 99);
+    const rows = sheet.getRange(firstRow, 1, lastRow - firstRow + 1, COUPON_AUDIT_HEADERS.length).getValues();
+    return {
+      logs: rows.reverse().map((row) => ({
+        operatedAt: formatManagementDate_(row[0]),
+        action: String(row[1] || ''),
+        couponId: String(row[7] || ''),
+        amount: row[8] === '' ? '' : Number(row[8]) || 0,
+        actor: String(row[3] || ''),
+        result: String(row[4] || ''),
+        batchId: String(row[6] || ''),
+        previousStatus: String(row[9] || ''),
+        nextStatus: String(row[10] || ''),
+        note: String(row[5] || '')
+      })),
+      warning: warning
+    };
+  } catch (error) {
+    console.error(error);
+    return { logs: [], warning: '操作履歴を読み取れません。管理者に連絡してください。' };
   }
 }
 
