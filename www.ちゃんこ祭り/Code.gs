@@ -8,6 +8,14 @@ const MANAGER_LOGIN_RATE_KEY = 'manager-login-failures';
 const MANAGER_LOGIN_WINDOW_MS = 60000;
 const MANAGER_LOGIN_COOLDOWN_MS = 30000;
 const MANAGER_LOGIN_MAX_FAILURES = 8;
+const MANAGER_WEBAUTHN_ORIGIN = 'https://wed20220202-collab.github.io';
+const MANAGER_WEBAUTHN_RP_ID = 'wed20220202-collab.github.io';
+const MANAGER_WEBAUTHN_CREDENTIALS_PROPERTY = 'MANAGER_WEBAUTHN_CREDENTIALS_V1';
+const MANAGER_WEBAUTHN_ENROLLED_PROPERTY = 'MANAGER_WEBAUTHN_ENROLLED_V1';
+const MANAGER_WEBAUTHN_SESSION_GENERATION_PROPERTY = 'MANAGER_WEBAUTHN_SESSION_GENERATION_V1';
+const MANAGER_WEBAUTHN_CHALLENGE_SECONDS = 300;
+const MANAGER_WEBAUTHN_RECENT_AUTH_MS = 300000;
+const MANAGER_WEBAUTHN_MAX_KEYS = 5;
 const MERCHANT_SESSION_SECONDS = 21600;
 const MERCHANT_PASSWORD_ROUNDS = 5000;
 const MERCHANT_LOGIN_WINDOW_MS = 300000;
@@ -19,6 +27,11 @@ const MERCHANT_GLOBAL_COOLDOWN_MS = 60000;
 const MERCHANT_GLOBAL_MAX_FAILURES = 60;
 const COUPON_SHEET_NAME = 'クーポンDB';
 const STORE_SHEET_NAME = '加盟店';
+const ACCOUNT_PROFILE_SHEET_NAME = 'アカウント画像';
+const ACCOUNT_PROFILE_HEADERS = ['権限', 'アカウントID', '画像形式', '画像データ（Base64）', '更新日時'];
+const ACCOUNT_IMAGE_MAX_DATA_URL_LENGTH = 44000;
+const ACCOUNT_IMAGE_MAX_BYTES = 32768;
+const ACCOUNT_IMAGE_MAX_DIMENSION = 512;
 const COUPON_AUDIT_SHEET_NAME = 'クーポン操作履歴';
 const COUPON_WALLET_URL = 'https://wed20220202-collab.github.io/MySite/www.%E3%81%A1%E3%82%83%E3%82%93%E3%81%93%E7%A5%AD%E3%82%8A/coupon.html';
 const COUPON_REDEEM_URL = 'https://wed20220202-collab.github.io/MySite/www.%E3%81%A1%E3%82%83%E3%82%93%E3%81%93%E7%A5%AD%E3%82%8A/coupon-redeem.html';
@@ -147,6 +160,7 @@ function issueLogin(id, password) {
   const role = loginId === ADMIN_ID ? ADMIN_ID : loginId === MANAGER_ID ? MANAGER_ID : '';
   if (!role) return { ok: false, message: 'IDまたはパスワードが違います。' };
   const result = role === ADMIN_ID ? adminLogin(loginId, password) : managerLogin(loginId, password);
+  if (result.ok && result.mfaRequired) return Object.assign({ role: role }, result);
   return result.ok ? { ok: true, token: result.token, role: role } : result;
 }
 
@@ -199,6 +213,23 @@ function managerLogin(id, password) {
         properties.deleteProperty('MANAGER_PASSWORD_TEMP');
       }
       cache.remove(MANAGER_LOGIN_RATE_KEY);
+      const credentials = managerWebAuthnCredentials_();
+      if (managerWebAuthnIsEnrolled_(credentials)) {
+        if (!credentials.length) throw new Error('セキュリティキーの設定が見つかりません。管理者に確認してください。');
+        const flow = createManagerWebAuthnFlow_(cache, 'login', '');
+        return {
+          ok: true,
+          mfaRequired: true,
+          flowId: flow.flowId,
+          publicKey: {
+            challenge: flow.challenge,
+            allowCredentials: credentials.map((item) => ({ type: 'public-key', id: item.id })),
+            rpId: MANAGER_WEBAUTHN_RP_ID,
+            timeout: MANAGER_WEBAUTHN_CHALLENGE_SECONDS * 1000,
+            userVerification: 'preferred'
+          }
+        };
+      }
       const token = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '');
       cache.put('manager:' + token, '1', MANAGER_SESSION_SECONDS);
       return { ok: true, token: token };
@@ -226,6 +257,166 @@ function managerLogin(id, password) {
 function managerLogout(token) {
   if (token) CacheService.getScriptCache().remove('manager:' + token);
   return true;
+}
+
+function getManagerSecurityKeyStatus(token) {
+  requireManager_(token);
+  const credentials = managerWebAuthnCredentials_();
+  return {
+    ok: true,
+    enrolled: managerWebAuthnIsEnrolled_(credentials),
+    keyCount: credentials.length,
+    keys: credentials.map((item) => ({
+      label: item.label,
+      createdAt: item.createdAt,
+      lastUsedAt: item.lastUsedAt || ''
+    }))
+  };
+}
+
+function beginManagerSecurityKeyEnrollment(token) {
+  const session = managerSessionValue_(token);
+  const credentials = managerWebAuthnCredentials_();
+  if (managerWebAuthnIsEnrolled_(credentials) && !credentials.length) {
+    throw new Error('セキュリティキーの設定が見つかりません。管理者に確認してください。');
+  }
+  if (credentials.length >= MANAGER_WEBAUTHN_MAX_KEYS) throw new Error('登録できるセキュリティキーの上限に達しています。');
+  const tokenHash = sha256_(String(token));
+  if (credentials.length) {
+    if (!session.mfa) throw new Error('セキュリティキーでログインしてください。');
+    const stepUp = createManagerWebAuthnFlow_(CacheService.getScriptCache(), 'stepup', tokenHash);
+    return {
+      ok: true,
+      stepUpRequired: true,
+      flowId: stepUp.flowId,
+      publicKey: managerAssertionOptions_(stepUp.challenge, credentials)
+    };
+  }
+  const flow = createManagerWebAuthnFlow_(CacheService.getScriptCache(), 'enroll', tokenHash);
+  return {
+    ok: true,
+    flowId: flow.flowId,
+    publicKey: managerEnrollmentOptions_(flow.challenge, credentials)
+  };
+}
+
+function completeManagerSecurityKeyEnrollmentStepUp(token, flowId, serializedAssertion) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const session = managerSessionValue_(token);
+    if (!session.mfa) throw new Error('セキュリティキーでログインしてください。');
+    const cache = CacheService.getScriptCache();
+    const flow = consumeManagerWebAuthnFlow_(cache, 'stepup', flowId);
+    const tokenHash = sha256_(String(token));
+    if (!safeEqual_(String(flow.tokenHash || ''), tokenHash)) throw new Error('登録操作の有効期限が切れました。');
+    const credentials = managerWebAuthnCredentials_();
+    if (!credentials.length || credentials.length >= MANAGER_WEBAUTHN_MAX_KEYS) {
+      throw new Error('セキュリティキーを追加できません。');
+    }
+    const assertion = verifyManagerWebAuthnAssertion_(serializedAssertion, flow.challenge, credentials);
+    managerAdvanceWebAuthnCounter_(credentials, assertion);
+    PropertiesService.getScriptProperties().setProperty(MANAGER_WEBAUTHN_CREDENTIALS_PROPERTY, JSON.stringify(credentials));
+    const enrollment = createManagerWebAuthnFlow_(cache, 'enroll', tokenHash, credentials[assertion.index].id);
+    return { ok: true, flowId: enrollment.flowId, publicKey: managerEnrollmentOptions_(enrollment.challenge, credentials) };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function managerEnrollmentOptions_(challenge, credentials) {
+  return {
+      challenge: challenge,
+      rp: { id: MANAGER_WEBAUTHN_RP_ID, name: '千駄木二丁目町会商店街' },
+      user: {
+        id: managerBase64Url_(Utilities.newBlob('manager').getBytes()),
+        name: MANAGER_ID,
+        displayName: '総括管理者'
+      },
+      pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
+      excludeCredentials: credentials.map((item) => ({ type: 'public-key', id: item.id })),
+      authenticatorSelection: {
+        authenticatorAttachment: 'cross-platform',
+        residentKey: 'discouraged',
+        userVerification: 'preferred'
+      },
+      attestation: 'none',
+      timeout: MANAGER_WEBAUTHN_CHALLENGE_SECONDS * 1000
+  };
+}
+
+function managerAssertionOptions_(challenge, credentials) {
+  return {
+    challenge: challenge,
+    allowCredentials: credentials.map((item) => ({ type: 'public-key', id: item.id })),
+    rpId: MANAGER_WEBAUTHN_RP_ID,
+    timeout: MANAGER_WEBAUTHN_CHALLENGE_SECONDS * 1000,
+    userVerification: 'preferred'
+  };
+}
+
+function finishManagerSecurityKeyEnrollment(token, flowId, serializedAttestation, label) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const session = managerSessionValue_(token);
+    const cache = CacheService.getScriptCache();
+    const flow = consumeManagerWebAuthnFlow_(cache, 'enroll', flowId);
+    if (!safeEqual_(String(flow.tokenHash || ''), sha256_(String(token)))) throw new Error('登録操作の有効期限が切れました。');
+    const credentials = managerWebAuthnCredentials_();
+    if (managerWebAuthnIsEnrolled_(credentials) && !credentials.length) throw new Error('セキュリティキーの設定が見つかりません。');
+    if (credentials.length && (!session.mfa || !flow.stepUpKeyId ||
+        !credentials.some((item) => item.id === flow.stepUpKeyId) ||
+        !Number.isSafeInteger(flow.stepUpAt) || Date.now() - flow.stepUpAt > MANAGER_WEBAUTHN_RECENT_AUTH_MS)) {
+      throw new Error('追加登録の前に既存のセキュリティキーを再確認してください。');
+    }
+    if (credentials.length >= MANAGER_WEBAUTHN_MAX_KEYS) throw new Error('登録できるセキュリティキーの上限に達しています。');
+    const attestation = verifyManagerWebAuthnRegistration_(serializedAttestation, flow.challenge);
+    if (credentials.some((item) => item.id === attestation.id)) throw new Error('このセキュリティキーは登録済みです。');
+    const createdAt = new Date().toISOString();
+    const safeLabel = clean_(label, 40) || 'セキュリティキー ' + (credentials.length + 1);
+    credentials.push({
+      id: attestation.id,
+      publicKey: attestation.publicKey,
+      signCount: attestation.signCount,
+      label: safeLabel,
+      createdAt: createdAt,
+      lastUsedAt: ''
+    });
+    const properties = PropertiesService.getScriptProperties();
+    const firstEnrollment = credentials.length === 1;
+    if (firstEnrollment) {
+      // Fail closed even if a property write fails part-way through enrollment.
+      const generation = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').toLowerCase();
+      properties.setProperty(MANAGER_WEBAUTHN_SESSION_GENERATION_PROPERTY, generation);
+      properties.setProperty(MANAGER_WEBAUTHN_ENROLLED_PROPERTY, '1');
+    }
+    properties.setProperty(MANAGER_WEBAUTHN_CREDENTIALS_PROPERTY, JSON.stringify(credentials));
+    return { ok: true, keyCount: credentials.length, reauthenticationRequired: firstEnrollment };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function finishManagerSecurityKeyLogin(flowId, serializedAssertion) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const cache = CacheService.getScriptCache();
+    const flow = consumeManagerWebAuthnFlow_(cache, 'login', flowId);
+    const credentials = managerWebAuthnCredentials_();
+    if (!managerWebAuthnIsEnrolled_(credentials) || !credentials.length) throw new Error('セキュリティキーが未登録です。');
+    const assertion = verifyManagerWebAuthnAssertion_(serializedAssertion, flow.challenge, credentials);
+    const record = managerAdvanceWebAuthnCounter_(credentials, assertion);
+    PropertiesService.getScriptProperties().setProperty(MANAGER_WEBAUTHN_CREDENTIALS_PROPERTY, JSON.stringify(credentials));
+    const generation = PropertiesService.getScriptProperties().getProperty(MANAGER_WEBAUTHN_SESSION_GENERATION_PROPERTY) || '';
+    if (!generation) throw new Error('セキュリティキーのセッション設定が見つかりません。');
+    const token = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').toLowerCase();
+    cache.put('manager:' + token, JSON.stringify({ generation: generation, mfa: true, keyId: record.id, authAt: Date.now() }), MANAGER_SESSION_SECONDS);
+    return { ok: true, token: token, role: MANAGER_ID };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function merchantLogin(id, password) {
@@ -303,6 +494,7 @@ function redeemLogin(id, password) {
   const loginId = String(id || '');
   if (loginId === ADMIN_ID || loginId === MANAGER_ID) {
     const result = issueLogin(loginId, password);
+    if (result.ok && result.mfaRequired) return result;
     return result.ok ? { ok: true, token: result.token, role: result.role } : result;
   }
   const result = merchantLogin(loginId, password);
@@ -334,6 +526,196 @@ function redeemLogout(token) {
     cache.remove('merchant:' + sessionToken);
   }
   return true;
+}
+
+/** Return only the profile belonging to the authenticated session. */
+function getAccountProfile(token) {
+  const identity = accountProfileIdentity_(token);
+  const sheet = getAccountProfileSheet_(false);
+  if (!sheet) return accountProfileResult_(identity, null);
+  ensureAccountProfileHeaders_(sheet);
+  const record = findAccountProfileRow_(sheet, identity);
+  return accountProfileResult_(identity, record ? record.values : null);
+}
+
+/** Store a small raster data URL; no caller-supplied account identifier is accepted. */
+function saveAccountProfileImage(token, imageDataUrl) {
+  const image = validateAccountImage_(imageDataUrl);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const identity = accountProfileIdentity_(token);
+    const sheet = getAccountProfileSheet_(true);
+    ensureAccountProfileHeaders_(sheet);
+    const record = findAccountProfileRow_(sheet, identity);
+    const updatedAt = new Date();
+    const values = [identity.role, identity.accountId, image.mime, image.dataUrl, updatedAt];
+    if (record) {
+      sheet.getRange(record.rowNumber, 1, 1, ACCOUNT_PROFILE_HEADERS.length).setValues([values]);
+    } else {
+      sheet.appendRow(values);
+    }
+    SpreadsheetApp.flush();
+    return accountProfileResult_(identity, values);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function removeAccountProfileImage(token) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const identity = accountProfileIdentity_(token);
+    const sheet = getAccountProfileSheet_(false);
+    if (!sheet) return accountProfileResult_(identity, null);
+    ensureAccountProfileHeaders_(sheet);
+    const record = findAccountProfileRow_(sheet, identity);
+    if (!record) return accountProfileResult_(identity, null);
+    const updatedAt = new Date();
+    sheet.getRange(record.rowNumber, 3, 1, 3).setValues([['', '', updatedAt]]);
+    SpreadsheetApp.flush();
+    return accountProfileResult_(identity, [identity.role, identity.accountId, '', '', updatedAt]);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function accountProfileIdentity_(token) {
+  const staff = requireStaffSession_(token, true);
+  if (staff.role === 'merchant') {
+    return {
+      role: 'merchant',
+      accountId: staff.storeId,
+      loginId: staff.loginId,
+      displayName: staff.storeName
+    };
+  }
+  return {
+    role: staff.role,
+    accountId: staff.role,
+    loginId: staff.role,
+    displayName: staff.role === MANAGER_ID ? '総括管理者' : '運営管理者'
+  };
+}
+
+function getAccountProfileSheet_(create) {
+  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+  return spreadsheet.getSheetByName(ACCOUNT_PROFILE_SHEET_NAME) ||
+    (create ? spreadsheet.insertSheet(ACCOUNT_PROFILE_SHEET_NAME) : null);
+}
+
+function ensureAccountProfileHeaders_(sheet) {
+  if (sheet.getLastRow() === 0) {
+    sheet.getRange(1, 1, 1, ACCOUNT_PROFILE_HEADERS.length).setValues([ACCOUNT_PROFILE_HEADERS]);
+    sheet.setFrozenRows(1);
+    return;
+  }
+  const actual = sheet.getRange(1, 1, 1, ACCOUNT_PROFILE_HEADERS.length).getValues()[0];
+  if (ACCOUNT_PROFILE_HEADERS.some((header, index) => String(actual[index] || '') !== header)) {
+    throw new Error('アカウント画像シートの見出しが変更されています。管理者に確認してください。');
+  }
+}
+
+function findAccountProfileRow_(sheet, identity) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return null;
+  const rows = sheet.getRange(2, 1, lastRow - 1, ACCOUNT_PROFILE_HEADERS.length).getValues();
+  const matches = rows.map((values, index) => ({ rowNumber: index + 2, values: values }))
+    .filter((item) => String(item.values[0] || '') === identity.role && String(item.values[1] || '') === identity.accountId);
+  if (matches.length > 1) throw new Error('アカウント画像の登録が重複しています。管理者に確認してください。');
+  return matches[0] || null;
+}
+
+function accountProfileResult_(identity, values) {
+  let imageDataUrl = '';
+  if (values && values[3]) {
+    try { imageDataUrl = validateAccountImage_(values[3]).dataUrl; } catch (error) { imageDataUrl = ''; }
+  }
+  return {
+    ok: true,
+    role: identity.role,
+    loginId: identity.loginId,
+    displayName: identity.displayName,
+    imageDataUrl: imageDataUrl,
+    updatedAt: values && values[4] ? formatManagementDate_(values[4]) : ''
+  };
+}
+
+function validateAccountImage_(value) {
+  const dataUrl = String(value || '');
+  if (dataUrl.length > ACCOUNT_IMAGE_MAX_DATA_URL_LENGTH) {
+    throw new Error('画像が大きすぎます。小さい画像を選び直してください。');
+  }
+  const match = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl);
+  if (!match || match[2].length % 4 !== 0) {
+    throw new Error('JPEG・PNG・WebP形式の画像を選んでください。');
+  }
+  let bytes;
+  try { bytes = Utilities.base64Decode(match[2]); } catch (error) {
+    throw new Error('画像データを読み取れませんでした。');
+  }
+  if (!bytes.length || bytes.length > ACCOUNT_IMAGE_MAX_BYTES || Utilities.base64Encode(bytes) !== match[2]) {
+    throw new Error('画像が大きすぎるか、画像データが正しくありません。');
+  }
+  const unsigned = bytes.map((byte) => (byte + 256) % 256);
+  const dimensions = accountImageDimensions_(unsigned, match[1]);
+  if (!dimensions || dimensions.width < 1 || dimensions.height < 1 ||
+      dimensions.width > ACCOUNT_IMAGE_MAX_DIMENSION || dimensions.height > ACCOUNT_IMAGE_MAX_DIMENSION) {
+    throw new Error('画像の形式または寸法が正しくありません。512px以下に縮小してください。');
+  }
+  return { mime: 'image/' + match[1], dataUrl: dataUrl };
+}
+
+function accountImageDimensions_(bytes, format) {
+  const ascii = (start, text) => text.split('').every((character, offset) => bytes[start + offset] === character.charCodeAt(0));
+  const be16 = (index) => (bytes[index] << 8) | bytes[index + 1];
+  const le16 = (index) => bytes[index] | (bytes[index + 1] << 8);
+  const be32 = (index) => (bytes[index] * 16777216) + (bytes[index + 1] << 16) + (bytes[index + 2] << 8) + bytes[index + 3];
+  if (format === 'png') {
+    if (bytes.length < 24 || !ascii(0, '\x89PNG\r\n\x1a\n') || !ascii(12, 'IHDR')) return null;
+    return { width: be32(16), height: be32(20) };
+  }
+  if (format === 'webp') {
+    if (bytes.length < 30 || !ascii(0, 'RIFF') || !ascii(8, 'WEBP')) return null;
+    if (ascii(12, 'VP8X')) {
+      if (bytes[20] & 0x02) return null; // Animated images are not profile icons.
+      return {
+        width: 1 + bytes[24] + (bytes[25] << 8) + (bytes[26] << 16),
+        height: 1 + bytes[27] + (bytes[28] << 8) + (bytes[29] << 16)
+      };
+    }
+    if (ascii(12, 'VP8L') && bytes[20] === 0x2f) {
+      return {
+        width: 1 + bytes[21] + ((bytes[22] & 0x3f) << 8),
+        height: 1 + (bytes[22] >> 6) + (bytes[23] << 2) + ((bytes[24] & 0x0f) << 10)
+      };
+    }
+    if (ascii(12, 'VP8 ') && bytes[23] === 0x9d && bytes[24] === 0x01 && bytes[25] === 0x2a) {
+      return { width: le16(26) & 0x3fff, height: le16(28) & 0x3fff };
+    }
+    return null;
+  }
+  if (format === 'jpeg') {
+    if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
+    let index = 2;
+    while (index + 3 < bytes.length) {
+      if (bytes[index] !== 0xff) return null;
+      while (bytes[index] === 0xff) index += 1;
+      const marker = bytes[index++];
+      if (marker === 0xd9 || marker === 0xda) return null;
+      if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue;
+      if (index + 1 >= bytes.length) return null;
+      const segmentLength = be16(index);
+      if (segmentLength < 2 || index + segmentLength > bytes.length) return null;
+      if ([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf].includes(marker)) {
+        if (segmentLength < 7) return null;
+        return { width: be16(index + 5), height: be16(index + 3) };
+      }
+      index += segmentLength;
+    }
+  }
+  return null;
 }
 
 function merchantUpdateCredentials(token, currentPassword, newId, newPassword) {
@@ -452,7 +834,7 @@ function getManagementData(token, page) {
   const stores = getStoreRows_().map(storeManagementResult_);
   stores.sort((left, right) => left.name.localeCompare(right.name, 'ja'));
   const audit = getCouponAuditSnapshot_();
-  CacheService.getScriptCache().put('manager:' + token, '1', MANAGER_SESSION_SECONDS);
+  refreshManagerSession_(token);
   return {
     stats: stats,
     activeDigest: sha256_(activeParts.join('\n')),
@@ -558,7 +940,7 @@ function saveStore(token, store) {
       sheet.appendRow(savedRow);
     }
     SpreadsheetApp.flush();
-    CacheService.getScriptCache().put('manager:' + token, '1', MANAGER_SESSION_SECONDS);
+    refreshManagerSession_(token);
     return {
       ok: true,
       store: storeManagementResult_(savedRow)
@@ -665,7 +1047,7 @@ function revokeActiveCoupons(token, expectedCount, confirmation, expectedDigest)
         ? 'クーポンは無効になりましたが、完了履歴の記録に失敗しました。操作ID ' + batchId + ' を管理者が確認してください。'
         : '無効化の途中でエラーが発生しました。操作ID ' + batchId + ' の対象券とDBの状態を管理者が確認してください。');
     }
-    CacheService.getScriptCache().put('manager:' + token, '1', MANAGER_SESSION_SECONDS);
+    refreshManagerSession_(token);
     return { ok: true, revoked: targets.length, at: formatManagementDate_(operatedAt), batchId: batchId };
   } finally {
     lock.releaseLock();
@@ -1072,10 +1454,286 @@ function requireAdmin_(token) {
   }
 }
 
+function managerWebAuthnCredentials_() {
+  const raw = PropertiesService.getScriptProperties().getProperty(MANAGER_WEBAUTHN_CREDENTIALS_PROPERTY);
+  if (!raw) return [];
+  let credentials;
+  try { credentials = JSON.parse(raw); } catch (error) { credentials = null; }
+  if (!Array.isArray(credentials) || credentials.length > MANAGER_WEBAUTHN_MAX_KEYS) {
+    throw new Error('セキュリティキーの登録情報が壊れています。管理者に確認してください。');
+  }
+  const seen = {};
+  credentials.forEach((item) => {
+    if (!item || typeof item !== 'object' || typeof item.id !== 'string' || typeof item.publicKey !== 'string' ||
+        !Number.isSafeInteger(item.signCount) || item.signCount < 0 || item.signCount > 0xffffffff ||
+        typeof item.label !== 'string' || typeof item.createdAt !== 'string') {
+      throw new Error('セキュリティキーの登録情報が壊れています。管理者に確認してください。');
+    }
+    const idBytes = managerFromBase64Url_(item.id, 1400);
+    const keyBytes = managerFromBase64Url_(item.publicKey, 100);
+    if (!idBytes.length || idBytes.length > 1024 || keyBytes.length !== 65 || keyBytes[0] !== 4 || seen[item.id]) {
+      throw new Error('セキュリティキーの登録情報が壊れています。管理者に確認してください。');
+    }
+    seen[item.id] = true;
+  });
+  return credentials;
+}
+
+function managerWebAuthnIsEnrolled_(credentials) {
+  const properties = PropertiesService.getScriptProperties();
+  return credentials.length > 0 || !!properties.getProperty(MANAGER_WEBAUTHN_ENROLLED_PROPERTY) ||
+    !!properties.getProperty(MANAGER_WEBAUTHN_SESSION_GENERATION_PROPERTY);
+}
+
+function createManagerWebAuthnFlow_(cache, purpose, tokenHash, stepUpKeyId) {
+  const challengeHex = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').toLowerCase();
+  const flowId = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(challengeHex) || !/^[a-f0-9]{64}$/.test(flowId)) throw new Error('認証チャレンジを作成できませんでした。');
+  const challenge = managerBase64Url_(challengeHex.match(/../g).map((part) => parseInt(part, 16)));
+  cache.put('manager-webauthn-' + purpose + ':' + flowId, JSON.stringify({
+    purpose: purpose,
+    tokenHash: tokenHash,
+    challenge: challenge,
+    stepUpKeyId: stepUpKeyId || '',
+    stepUpAt: stepUpKeyId ? Date.now() : 0,
+    expiresAt: Date.now() + MANAGER_WEBAUTHN_CHALLENGE_SECONDS * 1000
+  }), MANAGER_WEBAUTHN_CHALLENGE_SECONDS);
+  return { flowId: flowId, challenge: challenge };
+}
+
+function managerAdvanceWebAuthnCounter_(credentials, assertion) {
+  const record = credentials[assertion.index];
+  if (!record) throw new Error('セキュリティキーの登録情報が見つかりません。');
+  const oldCounter = Number(record.signCount);
+  if (!Number.isSafeInteger(oldCounter) || oldCounter < 0 || oldCounter > 0xffffffff) throw new Error('セキュリティキーの状態が不正です。');
+  if ((oldCounter !== 0 || assertion.signCount !== 0) && assertion.signCount <= oldCounter) {
+    throw new Error('セキュリティキーの署名カウンターが戻っています。別のキーを確認してください。');
+  }
+  record.signCount = assertion.signCount;
+  record.lastUsedAt = new Date().toISOString();
+  return record;
+}
+
+function consumeManagerWebAuthnFlow_(cache, purpose, flowId) {
+  const id = String(flowId || '');
+  if (!/^[a-f0-9]{64}$/.test(id)) throw new Error('認証操作の有効期限が切れました。');
+  const key = 'manager-webauthn-' + purpose + ':' + id;
+  const raw = cache.get(key);
+  cache.remove(key); // Single use, including failed verification; LockService protects concurrent use.
+  let flow;
+  try { flow = JSON.parse(raw || 'null'); } catch (error) { flow = null; }
+  if (!flow || flow.purpose !== purpose || !Number.isSafeInteger(flow.expiresAt) ||
+      flow.expiresAt < Date.now() || typeof flow.challenge !== 'string') {
+    throw new Error('認証操作の有効期限が切れました。もう一度やり直してください。');
+  }
+  return flow;
+}
+
+function managerBase64Url_(bytes) {
+  return Utilities.base64EncodeWebSafe(bytes).replace(/=+$/, '');
+}
+
+function managerFromBase64Url_(value, maxChars) {
+  const encoded = String(value || '');
+  if (!encoded || encoded.length > maxChars || !/^[A-Za-z0-9_-]+$/.test(encoded) || encoded.length % 4 === 1) {
+    throw new Error('セキュリティキーから受け取ったデータが正しくありません。');
+  }
+  let bytes;
+  try { bytes = Utilities.base64DecodeWebSafe(encoded + '='.repeat((4 - encoded.length % 4) % 4)); } catch (error) {
+    throw new Error('セキュリティキーから受け取ったデータが正しくありません。');
+  }
+  if (managerBase64Url_(bytes) !== encoded) throw new Error('セキュリティキーから受け取ったデータが正しくありません。');
+  return bytes.map((byte) => (byte + 256) % 256);
+}
+
+function managerHashBytes_(bytes) {
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, bytes)
+    .map((byte) => (byte + 256) % 256);
+}
+
+function managerBytesEqual_(left, right) {
+  if (left.length !== right.length) return false;
+  let diff = 0;
+  for (let index = 0; index < left.length; index += 1) diff |= left[index] ^ right[index];
+  return diff === 0;
+}
+
+function managerVerifyClientData_(encoded, expectedType, expectedChallenge) {
+  const bytes = managerFromBase64Url_(encoded, 11000);
+  if (bytes.length > 8192) throw new Error('認証データが大きすぎます。');
+  let data;
+  try { data = JSON.parse(Utilities.newBlob(bytes).getDataAsString('UTF-8')); } catch (error) { data = null; }
+  if (!data || typeof data !== 'object' || data.type !== expectedType ||
+      data.challenge !== expectedChallenge || data.origin !== MANAGER_WEBAUTHN_ORIGIN ||
+      (data.crossOrigin !== undefined && data.crossOrigin !== false) ||
+      (data.topOrigin !== undefined && data.topOrigin !== MANAGER_WEBAUTHN_ORIGIN)) {
+    throw new Error('認証元またはチャレンジが一致しません。');
+  }
+  return bytes;
+}
+
+function managerReadCbor_(bytes, cursor, depth) {
+  if (depth > 8 || cursor.position >= bytes.length) throw new Error('セキュリティキーのデータ形式が正しくありません。');
+  const initial = bytes[cursor.position++];
+  const major = initial >> 5;
+  const additional = initial & 31;
+  let length;
+  if (additional < 24) length = additional;
+  else if (additional === 24) length = bytes[cursor.position++];
+  else if (additional === 25) length = (bytes[cursor.position++] << 8) | bytes[cursor.position++];
+  else if (additional === 26) length = (bytes[cursor.position++] * 16777216) +
+    (bytes[cursor.position++] << 16) + (bytes[cursor.position++] << 8) + bytes[cursor.position++];
+  else throw new Error('セキュリティキーのデータ形式が正しくありません。');
+  if (!Number.isSafeInteger(length) || length < 0 || cursor.position > bytes.length) {
+    throw new Error('セキュリティキーのデータ形式が正しくありません。');
+  }
+  if (major === 0) return length;
+  if (major === 1) return -1 - length;
+  if (major === 2 || major === 3) {
+    if (cursor.position + length > bytes.length) throw new Error('セキュリティキーのデータ形式が正しくありません。');
+    const value = bytes.slice(cursor.position, cursor.position + length);
+    cursor.position += length;
+    return major === 2 ? value : Utilities.newBlob(value).getDataAsString('UTF-8');
+  }
+  if (major === 4) {
+    if (length > 32) throw new Error('セキュリティキーのデータ形式が正しくありません。');
+    const values = [];
+    for (let index = 0; index < length; index += 1) values.push(managerReadCbor_(bytes, cursor, depth + 1));
+    return values;
+  }
+  if (major === 5) {
+    if (length > 32) throw new Error('セキュリティキーのデータ形式が正しくありません。');
+    const values = new Map();
+    for (let index = 0; index < length; index += 1) {
+      const key = managerReadCbor_(bytes, cursor, depth + 1);
+      if (typeof key !== 'string' && typeof key !== 'number') throw new Error('セキュリティキーのデータ形式が正しくありません。');
+      if (values.has(key)) throw new Error('セキュリティキーのデータ形式が正しくありません。');
+      values.set(key, managerReadCbor_(bytes, cursor, depth + 1));
+    }
+    return values;
+  }
+  if (major === 7 && additional === 20) return false;
+  if (major === 7 && additional === 21) return true;
+  if (major === 7 && additional === 22) return null;
+  throw new Error('セキュリティキーのデータ形式が正しくありません。');
+}
+
+function managerAuthenticatorData_(bytes, expectRegistration) {
+  if (bytes.length < 37 || bytes.length > 16384) throw new Error('認証器データの長さが正しくありません。');
+  const rpIdHash = managerHashBytes_(Utilities.newBlob(MANAGER_WEBAUTHN_RP_ID).getBytes());
+  if (!managerBytesEqual_(bytes.slice(0, 32), rpIdHash)) throw new Error('認証先ドメインが一致しません。');
+  const flags = bytes[32];
+  if (!(flags & 0x01)) throw new Error('セキュリティキーの操作を確認できませんでした。');
+  if (!!(flags & 0x40) !== !!expectRegistration) throw new Error('認証器データの形式が正しくありません。');
+  const signCount = (bytes[33] * 16777216) + (bytes[34] << 16) + (bytes[35] << 8) + bytes[36];
+  if (!expectRegistration) {
+    if (flags & 0x80) {
+      const cursor = { position: 37 };
+      if (!(managerReadCbor_(bytes, cursor, 0) instanceof Map) || cursor.position !== bytes.length) {
+        throw new Error('認証器データの形式が正しくありません。');
+      }
+    } else if (bytes.length !== 37) throw new Error('認証器データの形式が正しくありません。');
+  }
+  return { flags: flags, signCount: signCount };
+}
+
+function verifyManagerWebAuthnRegistration_(serialized, challenge) {
+  if (!serialized || typeof serialized !== 'object' || serialized.type !== 'public-key' || !serialized.response) {
+    throw new Error('セキュリティキーの登録データが正しくありません。');
+  }
+  const rawId = managerFromBase64Url_(serialized.rawId, 1400);
+  const id = managerBase64Url_(rawId);
+  if (!rawId.length || rawId.length > 1024 || serialized.id !== id) throw new Error('セキュリティキーIDが一致しません。');
+  managerVerifyClientData_(serialized.response.clientDataJSON, 'webauthn.create', challenge);
+  const objectBytes = managerFromBase64Url_(serialized.response.attestationObject, 44000);
+  const cursor = { position: 0 };
+  const object = managerReadCbor_(objectBytes, cursor, 0);
+  if (!(object instanceof Map) || cursor.position !== objectBytes.length || object.get('fmt') !== 'none' ||
+      !(object.get('attStmt') instanceof Map) || object.get('attStmt').size !== 0) {
+    throw new Error('このセキュリティキーの登録形式には対応していません。');
+  }
+  const authData = object.get('authData');
+  if (!Array.isArray(authData)) throw new Error('認証器データがありません。');
+  const parsed = managerAuthenticatorData_(authData, true);
+  let offset = 37 + 16;
+  if (offset + 2 > authData.length) throw new Error('認証器データの形式が正しくありません。');
+  const idLength = (authData[offset++] << 8) | authData[offset++];
+  if (!idLength || idLength > 1024 || offset + idLength > authData.length) throw new Error('セキュリティキーIDが正しくありません。');
+  const attestedId = authData.slice(offset, offset + idLength);
+  offset += idLength;
+  if (!managerBytesEqual_(rawId, attestedId)) throw new Error('セキュリティキーIDが一致しません。');
+  const keyCursor = { position: offset };
+  const cose = managerReadCbor_(authData, keyCursor, 0);
+  if (!(cose instanceof Map) || cose.get(1) !== 2 || cose.get(3) !== -7 || cose.get(-1) !== 1 ||
+      !Array.isArray(cose.get(-2)) || !Array.isArray(cose.get(-3)) ||
+      cose.get(-2).length !== 32 || cose.get(-3).length !== 32) {
+    throw new Error('P-256形式のセキュリティキーのみ登録できます。');
+  }
+  if (parsed.flags & 0x80) {
+    if (!(managerReadCbor_(authData, keyCursor, 0) instanceof Map)) throw new Error('認証器データの形式が正しくありません。');
+  }
+  if (keyCursor.position !== authData.length) throw new Error('認証器データの形式が正しくありません。');
+  const publicKey = [4].concat(cose.get(-2), cose.get(-3));
+  if (typeof WebAuthnCrypto === 'undefined' || !WebAuthnCrypto.validateP256PublicKey(new Uint8Array(publicKey))) {
+    throw new Error('セキュリティキーの公開鍵が正しくありません。');
+  }
+  return { id: id, publicKey: managerBase64Url_(publicKey), signCount: parsed.signCount };
+}
+
+function verifyManagerWebAuthnAssertion_(serialized, challenge, credentials) {
+  if (!serialized || typeof serialized !== 'object' || serialized.type !== 'public-key' || !serialized.response) {
+    throw new Error('セキュリティキーの認証データが正しくありません。');
+  }
+  const rawId = managerFromBase64Url_(serialized.rawId, 1400);
+  const id = managerBase64Url_(rawId);
+  if (!rawId.length || serialized.id !== id) throw new Error('セキュリティキーIDが一致しません。');
+  const index = credentials.findIndex((item) => item.id === id);
+  if (index < 0) throw new Error('登録されていないセキュリティキーです。');
+  const clientData = managerVerifyClientData_(serialized.response.clientDataJSON, 'webauthn.get', challenge);
+  const authenticatorData = managerFromBase64Url_(serialized.response.authenticatorData, 22000);
+  const parsed = managerAuthenticatorData_(authenticatorData, false);
+  const signature = managerFromBase64Url_(serialized.response.signature, 300);
+  if (signature.length < 8 || signature.length > 128) throw new Error('署名データが正しくありません。');
+  const publicKey = managerFromBase64Url_(credentials[index].publicKey, 100);
+  const signedBytes = authenticatorData.concat(managerHashBytes_(clientData));
+  const digest = managerHashBytes_(signedBytes);
+  if (typeof WebAuthnCrypto === 'undefined' ||
+      !WebAuthnCrypto.verifyP256DerDigest(new Uint8Array(signature), new Uint8Array(digest), new Uint8Array(publicKey))) {
+    throw new Error('セキュリティキーの署名を確認できませんでした。');
+  }
+  return { index: index, signCount: parsed.signCount };
+}
+
 function requireManager_(token) {
-  if (!token || CacheService.getScriptCache().get('manager:' + token) !== '1') {
+  managerSessionValue_(token);
+}
+
+function managerSessionValue_(token, cache) {
+  const sessionToken = String(token || '');
+  if (!sessionToken) throw new Error('SESSION_EXPIRED');
+  const service = cache || CacheService.getScriptCache();
+  const value = service.get('manager:' + sessionToken);
+  if (!value) throw new Error('SESSION_EXPIRED');
+  const credentials = managerWebAuthnCredentials_();
+  if (!managerWebAuthnIsEnrolled_(credentials)) {
+    if (value !== '1') throw new Error('SESSION_EXPIRED');
+    return { raw: value, mfa: false, authAt: 0 };
+  }
+  if (!/^[a-f0-9]{64}$/.test(sessionToken)) throw new Error('SESSION_EXPIRED');
+  let session;
+  try { session = JSON.parse(value); } catch (error) { session = null; }
+  const generation = PropertiesService.getScriptProperties().getProperty(MANAGER_WEBAUTHN_SESSION_GENERATION_PROPERTY) || '';
+  if (!generation || !session || session.mfa !== true || session.generation !== generation ||
+      !credentials.some((item) => item.id === session.keyId) || !Number.isSafeInteger(session.authAt)) {
     throw new Error('SESSION_EXPIRED');
   }
+  return { raw: value, mfa: true, authAt: session.authAt };
+}
+
+function refreshManagerSession_(token) {
+  const cache = CacheService.getScriptCache();
+  const session = managerSessionValue_(token, cache);
+  cache.put('manager:' + token, session.raw, MANAGER_SESSION_SECONDS);
 }
 
 function requireStaffSession_(token, allowMerchant) {
@@ -1086,8 +1744,9 @@ function requireStaffSession_(token, allowMerchant) {
     cache.put('admin:' + sessionToken, '1', ADMIN_SESSION_SECONDS);
     return { role: ADMIN_ID, operatorName: '運営管理者（admin）' };
   }
-  if (cache.get('manager:' + sessionToken) === '1') {
-    cache.put('manager:' + sessionToken, '1', MANAGER_SESSION_SECONDS);
+  if (cache.get('manager:' + sessionToken)) {
+    const session = managerSessionValue_(sessionToken, cache);
+    cache.put('manager:' + sessionToken, session.raw, MANAGER_SESSION_SECONDS);
     return { role: MANAGER_ID, operatorName: '総括管理者（manager）' };
   }
   if (allowMerchant) {

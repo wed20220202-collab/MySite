@@ -16,6 +16,7 @@
 <body>
   <iframe id="managementApp" title="千駄木二丁目町会商店街総括管理サイト"></iframe>
   <noscript>管理サイトの表示には JavaScript を有効にしてください。</noscript>
+  <script src="staff-webauthn.js"></script>
   <script>
     const app = document.getElementById('managementApp');
     const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
@@ -40,12 +41,20 @@
       if (!/^https:\/\/[a-z0-9.-]+\.googleusercontent\.com$/i.test(event.origin)) return;
       if (!isInsideManagementFrame(event.source)) return;
       const data = event.data;
-      if (!data || data.type !== 'management-auth-bridge' || data.nonce !== nonce) return;
+      if (!data || data.nonce !== nonce) return;
       if (bridgeSource && (event.source !== bridgeSource || event.origin !== bridgeOrigin)) return;
       if (!bridgeSource) {
+        if (data.type !== 'management-auth-bridge' || data.action !== 'get') return;
         bridgeSource = event.source;
         bridgeOrigin = event.origin;
       }
+      if (data.type === 'staff-webauthn-request') {
+        ChankoSecurityKey.handle(data, result => {
+          bridgeSource.postMessage({ type: 'staff-webauthn-response', nonce, ...result }, bridgeOrigin);
+        });
+        return;
+      }
+      if (data.type !== 'management-auth-bridge') return;
       if (data.action === 'get') {
         let token = '';
         try { token = sessionStorage.getItem(storageKey) || ''; } catch (error) {}

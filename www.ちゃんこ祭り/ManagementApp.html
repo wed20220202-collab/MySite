@@ -13,6 +13,9 @@
     .stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:27px}.stat{background:var(--paper);border:1px solid var(--line);border-radius:15px;padding:17px 18px;box-shadow:0 2px 12px #32171d09}.stat:before{content:"";display:block;width:27px;height:3px;background:var(--gold);margin-bottom:10px}.stat-label{font-size:13px;color:var(--muted);font-weight:800}.stat-number{font-family:Georgia,serif;font-size:clamp(25px,3vw,34px);line-height:1.2;font-weight:800;color:var(--deep);font-variant-numeric:tabular-nums}.section{background:var(--paper);border:1px solid var(--line);border-radius:17px;margin-bottom:20px;box-shadow:0 3px 16px #32171d0a;overflow:hidden}.section-head{padding:20px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:13px}.section-head h2{margin:0;font-family:serif;font-size:21px;color:var(--deep)}.section-head p{margin:2px 0 0;font-size:13px;color:var(--muted)}.section-body{padding:20px 22px}.table-wrap{overflow-x:auto}.data-table{width:100%;border-collapse:collapse;text-align:left}.data-table th{background:#f5efe5;color:#5d3b36;font-size:12px;white-space:nowrap}.data-table td,.data-table th{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:middle}.data-table tr:last-child td{border-bottom:0}.data-table td{font-variant-numeric:tabular-nums}.code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;overflow-wrap:anywhere}.empty{padding:30px 15px;color:var(--muted);text-align:center}.pill{display:inline-block;padding:3px 9px;border-radius:999px;background:#e5f3e9;color:var(--green);font-size:12px;font-weight:900}.pill.off{background:#f0e9e4;color:#6b6060}.pager{display:flex;gap:10px;align-items:center;justify-content:flex-end;margin-top:16px;font-size:13px;color:var(--muted)}.danger-zone{background:#fff8f6;border:1px solid #ecc7c1;border-radius:13px;padding:17px;display:flex;justify-content:space-between;align-items:center;gap:16px}.danger-zone b{color:var(--danger)}.danger-zone p{margin:4px 0 0;color:var(--muted);font-size:13px}.danger-zone .btn{flex:none}
     .audit-table{min-width:930px}.audit-table td{font-size:13px}.audit-table .code{font-size:12px}.audit-note{min-width:160px;max-width:290px;overflow-wrap:anywhere}.audit-warning{margin:0 0 15px}.audit-count{margin:0 0 12px;color:var(--muted);font-size:13px}
     .account-panel{padding:17px;border:1px solid var(--line);border-radius:12px;background:#fbf6ed}.account-panel h3{margin:0;color:var(--deep);font-family:serif;font-size:19px}.account-panel p{margin:0;color:var(--muted);font-size:13px}.account-fields{display:grid;gap:14px;margin-top:15px}.field-hint{font-size:12px;color:var(--muted);font-weight:400}
+    .security-key-list{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px;padding:0;list-style:none}.security-key-list:empty{display:none}.security-key-list li{padding:5px 10px;border-radius:999px;background:#e8f3ec;color:var(--green);font-size:13px;font-weight:800}
+    .signed-in{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.signed-in-avatar{width:42px;height:42px;flex:none;border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 0 0 1px var(--gold)}.signed-in-fallback{display:grid;place-items:center;background:#743f45;color:#fff;font-family:serif;font-weight:900;font-size:19px}.signed-in-name{display:grid;line-height:1.25;min-width:90px}.signed-in-name strong{font-size:13px}.signed-in-name span{color:#e4d1c5;font-size:11px;overflow-wrap:anywhere}.masthead .profile-edit{background:#ffffff1a;border-color:#ffffff55}.masthead .profile-logout{background:#fff;color:var(--deep);border-color:#fff}.masthead .profile-logout:hover{background:#f6e7d3}.profile-dialog .dialog-body{display:grid;gap:11px}.profile-dialog .dialog-head p{font-size:13px}.profile-file{padding:12px;border:1px dashed var(--gold);border-radius:10px;background:#fff}.profile-file input{width:100%;padding:0;border:0;font-size:13px}.profile-preview{display:grid;place-items:center;width:220px;height:220px;margin:6px auto;border-radius:50%;overflow:hidden;background:#efe4d5;border:3px solid #fff;box-shadow:0 0 0 1px var(--gold),0 8px 24px #210a0c1c;touch-action:none}.profile-preview img,.profile-preview canvas{width:220px;height:220px;object-fit:cover}.profile-preview canvas{cursor:grab;touch-action:none}.profile-preview canvas:active{cursor:grabbing}.profile-dialog input[type=range]{padding:0;accent-color:var(--red)}.profile-dialog .dialog-actions{margin-top:4px}.profile-dialog .dialog-actions .btn{min-height:40px;padding:8px 12px}.profile-dialog .notice{margin:0}
+    @media(max-width:740px){.masthead-inner{flex-wrap:wrap}.signed-in{width:100%}.signed-in-name{flex:1}.profile-dialog .dialog-actions{flex-wrap:wrap}.profile-dialog .dialog-actions .btn{flex:1}}
     dialog{width:min(550px,calc(100% - 24px));max-height:calc(100vh - 30px);overflow:auto;padding:0;border:1px solid var(--line);border-radius:17px;box-shadow:0 25px 80px #16080b66;color:var(--ink)}dialog::backdrop{background:#1e1117aa}.dialog-head{padding:22px 24px 14px;border-bottom:1px solid var(--line)}.dialog-head h2{font-family:serif;font-size:24px;color:var(--deep);margin:0}.dialog-head p{margin:5px 0 0;color:var(--muted);font-size:13px}.dialog-body{padding:22px 24px}.dialog-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:21px}.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}.check-field{display:flex;align-items:center;gap:8px;font-weight:700}.check-field input{width:18px;height:18px}.warning{padding:13px 15px;background:#fff2e6;border-left:4px solid var(--danger);border-radius:7px;color:#63372f}.warning strong{color:var(--danger)}
     @media(max-width:850px){.stats{grid-template-columns:repeat(3,minmax(0,1fr))}.masthead-inner{padding:17px}.content{padding:21px 17px 50px}}@media(max-width:600px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.topline{align-items:start;flex-direction:column}.section-head{align-items:start;flex-direction:column;padding:18px}.section-body{padding:17px}.danger-zone{align-items:stretch;flex-direction:column}.two-col{grid-template-columns:1fr}.dialog-actions{flex-direction:column-reverse}.dialog-actions .btn{width:100%}.masthead .brand-mark{display:none}.masthead .btn{font-size:12px;padding:8px 10px}.masthead h1{font-size:17px}}
   </style>
@@ -24,10 +27,11 @@
     <form id="loginForm" class="stack"><label class="field">管理者ID<input id="loginId" autocomplete="username" required></label><label class="field">パスワード<input id="loginPassword" type="password" autocomplete="current-password" required></label><button id="loginButton" class="btn btn-primary full" type="submit">ログイン</button></form><p id="loginError" class="notice" role="alert"></p>
   </section></main>
   <div id="appView" hidden>
-    <header class="masthead"><div class="masthead-inner"><div class="masthead-title"><div class="brand-mark" aria-hidden="true">千</div><div><div class="eyebrow">千駄木二丁目町会・商店街</div><h1>総括管理サイト</h1></div></div><button id="logoutButton" class="btn btn-small" type="button">ログアウト</button></div></header>
+    <header class="masthead"><div class="masthead-inner"><div class="masthead-title"><div class="brand-mark" aria-hidden="true">千</div><div><div class="eyebrow">千駄木二丁目町会・商店街</div><h1>総括管理サイト</h1></div></div><div class="signed-in"><span id="profileFallback" class="signed-in-avatar signed-in-fallback" aria-hidden="true">管</span><img id="profileAvatar" class="signed-in-avatar" alt="ログイン中のアカウント画像" hidden><span class="signed-in-name"><strong id="profileName">総括管理者</strong><span id="profileAccount">manager でログイン中</span></span><button id="profileEditButton" class="btn btn-small profile-edit" type="button">画像を設定</button><button id="logoutButton" class="btn btn-small profile-logout" type="button">ログアウト</button></div></div></header>
     <main class="content">
       <div class="topline"><div><h2>運営状況</h2><div id="fetchedAt" class="fetched">データを読み込んでいます</div></div><button id="refreshButton" class="btn btn-light btn-small" type="button">最新の情報に更新</button></div>
       <div id="appError" class="alert" role="alert" hidden></div><div id="loading" class="loading" role="status" hidden>データを読み込んでいます…</div>
+      <section class="section" aria-labelledby="securityKeyTitle"><div class="section-head"><div><h2 id="securityKeyTitle">manager のセキュリティキー</h2><p>登録後はパスワードに加え、このキーの操作がログインに必要です。紛失に備えて予備キーの登録を推奨します。</p></div></div><div class="section-body"><p id="securityKeyStatus" role="status">登録状況を確認しています…</p><ul id="securityKeyList" class="security-key-list" aria-label="登録済みのキー"></ul><div class="two-col"><label class="field">キーの名前<input id="securityKeyLabel" maxlength="40" value="メインキー" autocomplete="off"><span class="field-hint">複数登録する場合に区別する名前です。ブラウザの確認画面で接続中のキーを選んでください。</span></label><div style="display:flex;align-items:end"><button id="securityKeyEnroll" class="btn btn-primary" type="button">セキュリティキーを登録</button></div></div><p id="securityKeyError" class="notice" role="alert"></p></div></section>
       <section class="stats" aria-label="クーポンの件数"><div class="stat"><div class="stat-label">発行済み・未使用</div><div id="statActive" class="stat-number">—</div></div><div class="stat"><div class="stat-label">使用済み</div><div id="statUsed" class="stat-number">—</div></div><div class="stat"><div class="stat-label">無効</div><div id="statInvalid" class="stat-number">—</div></div><div class="stat"><div class="stat-label">期限切れ</div><div id="statExpired" class="stat-number">—</div></div><div class="stat"><div class="stat-label">累計発行</div><div id="statIssued" class="stat-number">—</div></div></section>
       <section class="section" aria-labelledby="couponTitle"><div class="section-head"><div><h2 id="couponTitle">発行済み・未使用クーポン</h2><p>有効期限内の一覧です。購入者へ実際に渡したかどうかは記録していません。</p></div></div><div class="section-body"><div class="table-wrap"><table class="data-table"><thead><tr><th scope="col">クーポンID</th><th scope="col">割引額</th><th scope="col">発行日時</th><th scope="col">有効期限</th></tr></thead><tbody id="couponRows"></tbody></table></div><div id="couponEmpty" class="empty" hidden>対象のクーポンはありません。</div><div class="pager"><span id="pageInfo"></span><button id="prevPage" class="btn btn-quiet btn-small" type="button">前へ</button><button id="nextPage" class="btn btn-quiet btn-small" type="button">次へ</button></div></div></section>
       <section class="section" aria-labelledby="storeTitle"><div class="section-head"><div><h2 id="storeTitle">加盟店舗</h2><p>店舗ごとに QR 読み取りページ用のアカウントを設定します。公開中の店舗はお客様用ページの地図・一覧に表示されます。</p></div><button id="newStoreButton" class="btn btn-primary btn-small" type="button">店舗を追加</button></div><div class="section-body"><div class="table-wrap"><table class="data-table"><thead><tr><th scope="col">店舗名</th><th scope="col">店舗責任者</th><th scope="col">加盟店ID</th><th scope="col">ログイン</th><th scope="col">所在地</th><th scope="col">公開</th><th scope="col">操作</th></tr></thead><tbody id="storeRows"></tbody></table></div><div id="storeEmpty" class="empty" hidden>登録された店舗はありません。</div></div></section>
@@ -35,16 +39,33 @@
       <section class="section" aria-labelledby="auditTitle"><div class="section-head"><div><h2 id="auditTitle">クーポン操作履歴</h2><p>この画面では閲覧専用です。無効化した券は削除せず、状態の変更と操作内容を記録します。</p></div></div><div class="section-body"><div id="auditWarning" class="alert audit-warning" role="alert" hidden></div><p id="auditCount" class="audit-count"></p><div class="table-wrap"><table class="data-table audit-table"><thead><tr><th scope="col">操作日時</th><th scope="col">操作</th><th scope="col">クーポンID</th><th scope="col">割引額</th><th scope="col">状態の変更</th><th scope="col">操作者</th><th scope="col">結果</th><th scope="col">備考・操作ID</th></tr></thead><tbody id="auditRows"></tbody></table></div><div id="auditEmpty" class="empty" hidden>記録された操作はまだありません。</div></div></section>
     </main>
   </div>
+  <dialog id="profileDialog" class="profile-dialog" aria-labelledby="profileDialogTitle"><div class="dialog-head"><h2 id="profileDialogTitle">アカウント画像</h2><p>画像はこのアカウントだけに保存します。位置をドラッグまたは矢印キーで調整できます。</p></div><div class="dialog-body"><label class="field profile-file">画像を選択<input id="profileFile" type="file" accept="image/jpeg,image/png,image/webp"></label><div class="profile-preview"><img id="profileCurrent" alt="現在のアカウント画像" hidden><canvas id="profileCanvas" width="220" height="220" tabindex="0" aria-label="切り抜きプレビュー。矢印キーで位置を変更" hidden></canvas><span id="profileEmpty" aria-hidden="true">画像を選択してください</span></div><label class="field" for="profileZoom">拡大率<input id="profileZoom" type="range" min="100" max="300" value="100" disabled></label><p class="field-hint">JPEG・PNG・WebP、12MBまで。保存時に自動圧縮します。</p><p id="profileError" class="notice" role="alert"></p><div class="dialog-actions"><button id="profileRemove" class="btn btn-light" type="button">画像を削除</button><button id="profileClose" class="btn btn-light" type="button">閉じる</button><button id="profileSave" class="btn btn-primary" type="button" disabled>画像を保存</button></div></div></dialog>
   <dialog id="storeDialog" aria-labelledby="storeDialogTitle"><div class="dialog-head"><h2 id="storeDialogTitle">店舗を追加</h2><p>店舗責任者とログイン情報はお客様用ページには公開されません。</p></div><form id="storeForm" class="dialog-body stack"><input id="storeId" type="hidden"><label class="field">店舗名<input id="storeName" maxlength="80" autocomplete="organization" required></label><label class="field">店舗責任者<input id="storeManager" maxlength="80" required></label><section class="account-panel" aria-labelledby="storeAccountTitle"><h3 id="storeAccountTitle">加盟店アカウント</h3><p>店舗側の QR 読み取りページで使います。パスワードは保存後に表示できません。</p><div class="account-fields"><label class="field">ログイン ID<input id="storeLoginId" minlength="4" maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9._\-]{3,39}" autocapitalize="off" autocomplete="off" spellcheck="false"><span class="field-hint">4～40 文字、先頭は半角英数字。続きにはピリオド・アンダースコア・ハイフンも使えます。admin・manager や他店舗と同じ ID は使えません。</span></label><label class="field">パスワード<input id="storePassword" type="password" minlength="12" maxlength="128" autocomplete="new-password"><span id="storePasswordHint" class="field-hint"></span></label><label class="field">パスワードの確認<input id="storePasswordConfirm" type="password" minlength="12" maxlength="128" autocomplete="new-password"></label></div></section><label class="field">所在地<input id="storeAddress" maxlength="160" autocomplete="street-address"></label><div class="two-col"><label class="field">緯度<input id="storeLat" type="number" min="-90" max="90" step="any" placeholder="例：35.7250"></label><label class="field">経度<input id="storeLng" type="number" min="-180" max="180" step="any" placeholder="例：139.7590"></label></div><label class="check-field"><input id="storePublished" type="checkbox">お客様用の店舗一覧・地図に公開する</label><p id="storeError" class="notice" role="alert"></p><div class="dialog-actions"><button id="cancelStoreButton" class="btn btn-light" type="button">キャンセル</button><button id="saveStoreButton" class="btn btn-primary" type="submit">保存する</button></div></form></dialog>
   <dialog id="revokeDialog" aria-labelledby="revokeDialogTitle"><div class="dialog-head"><h2 id="revokeDialogTitle">全件無効化の確認</h2><p>この操作は取り消せません。</p></div><div class="dialog-body"><div class="warning">現在の発行済み・未使用クーポン <strong id="revokeCount">0</strong> 件をすべて無効にします。使用済み履歴と記録は残ります。</div><label class="field" style="margin-top:18px">確認のため「全件無効化」と入力してください<input id="revokePhrase" autocomplete="off" spellcheck="false" placeholder="全件無効化"></label><p id="revokeError" class="notice" role="alert"></p><div class="dialog-actions"><button id="cancelRevokeButton" class="btn btn-light" type="button">やめる</button><button id="confirmRevokeButton" class="btn btn-danger" type="button" disabled>対象クーポンを無効化</button></div></div></dialog>
   <script>
     const $=id=>document.getElementById(id);
     const state={token:'',data:null,page:1,loading:false,loadSerial:0,saving:false,revoking:false,revokeCount:0,revokeDigest:''};
+    let profileImage='',cropImage=null,cropX=0,cropY=0,profileBusy=false;
     const siteOrigin='https://wed20220202-collab.github.io';
     let bridgeNonce='';
     function sendAuthBridge(action,token){
       if(!bridgeNonce)return;
       window.top.postMessage({type:'management-auth-bridge',action,nonce:bridgeNonce,token:token||''},siteOrigin);
+    }
+    function requestSecurityKey(action,publicKey){
+      if(!bridgeNonce||window.top===window)return Promise.reject(Error('セキュリティキーは公開管理サイトから利用してください。'));
+      const requestId=Array.from(crypto.getRandomValues(new Uint8Array(16)),byte=>byte.toString(16).padStart(2,'0')).join('');
+      return new Promise((resolve,reject)=>{
+        const timer=setTimeout(()=>{window.removeEventListener('message',onResponse);reject(Error('セキュリティキーの操作が時間切れになりました。'))},100000);
+        function onResponse(event){
+          const data=event.data;
+          if(event.source!==window.top||event.origin!==siteOrigin||!data||data.type!=='staff-webauthn-response'||data.nonce!==bridgeNonce||data.requestId!==requestId)return;
+          clearTimeout(timer);window.removeEventListener('message',onResponse);
+          if(data.ok&&data.credential)resolve(data.credential);else reject(Error(data.message||'セキュリティキーを確認できませんでした。'));
+        }
+        window.addEventListener('message',onResponse);
+        window.top.postMessage({type:'staff-webauthn-request',action,nonce:bridgeNonce,requestId,publicKey},siteOrigin);
+      });
     }
     google.script.url.getLocation(locationInfo=>{
       const value=String(locationInfo&&locationInfo.parameter&&locationInfo.parameter.bridge||'');
@@ -60,19 +81,149 @@
       const token=String(data.token||'');
       if(!/^[a-f0-9]{64}$/i.test(token))return;
       state.token=token;
+      loadProfile(token);
       await loadData(1);
-      if(state.token===token&&state.data){$('loginView').hidden=true;$('appView').hidden=false}
+      if(state.token===token&&state.data){$('loginView').hidden=true;$('appView').hidden=false;refreshSecurityKeyStatus()}
       else if(state.token===token){state.token='';$('loginError').textContent='保存済みログインを確認できませんでした。通信を確認して再読み込みするか、もう一度ログインしてください。'}
     });
     const number=value=>Number(value||0).toLocaleString('ja-JP');
     function callServer(method,...args){return new Promise((resolve,reject)=>{try{google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[method](...args)}catch(error){reject(error)}})}
+    function validProfileImage(value){return typeof value==='string'&&value.length<44000&&/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(value)?value:''}
+    function renderProfile(profile){
+      profileImage=validProfileImage(profile&&profile.imageDataUrl);
+      const name=String(profile&&profile.displayName||'').trim()||'総括管理者';
+      $('profileName').textContent=name;$('profileAccount').textContent='ID：'+String(profile&&profile.loginId||'manager')+' ・ manager';
+      $('profileFallback').textContent=name.slice(0,1);
+      $('profileAvatar').hidden=!profileImage;$('profileFallback').hidden=!!profileImage;
+      if(profileImage)$('profileAvatar').src=profileImage;else $('profileAvatar').removeAttribute('src');
+    }
+    async function loadProfile(token){
+      try{const profile=await callServer('getAccountProfile',token);if(state.token===token&&profile&&profile.ok)renderProfile(profile)}
+      catch(error){if(state.token!==token)return;if(isExpired(error)){logOutLocal('ログインの有効期限が切れました。もう一度ログインしてください。');return}showBanner('アカウント画像を読み込めませんでした。画像設定から再試行できます。',false)}
+    }
+    function cropMetrics(){
+      const zoom=Number($('profileZoom').value)/100,scale=Math.max(220/cropImage.naturalWidth,220/cropImage.naturalHeight)*zoom;
+      const boundX=Math.max(0,(cropImage.naturalWidth*scale-220)/2),boundY=Math.max(0,(cropImage.naturalHeight*scale-220)/2);
+      cropX=Math.max(-boundX,Math.min(boundX,cropX));cropY=Math.max(-boundY,Math.min(boundY,cropY));
+      return {scale};
+    }
+    function drawCrop(canvas,size){
+      if(!cropImage)return;
+      const {scale}=cropMetrics(),side=220/scale;
+      canvas.width=size;canvas.height=size;
+      const context=canvas.getContext('2d');context.fillStyle='#fff';context.fillRect(0,0,size,size);
+      context.drawImage(cropImage,(cropImage.naturalWidth-side)/2-cropX/scale,(cropImage.naturalHeight-side)/2-cropY/scale,side,side,0,0,size,size);
+    }
+    function previewCrop(){if(cropImage)drawCrop($('profileCanvas'),220)}
+    function openProfile(){
+      cropImage=null;cropX=0;cropY=0;$('profileFile').value='';$('profileZoom').value='100';$('profileZoom').disabled=true;$('profileSave').disabled=true;$('profileError').textContent='';
+      $('profileCurrent').hidden=!profileImage;$('profileCanvas').hidden=true;$('profileEmpty').hidden=!!profileImage;
+      $('profileRemove').disabled=!profileImage;if(profileImage)$('profileCurrent').src=profileImage;else $('profileCurrent').removeAttribute('src');
+      $('profileDialog').showModal();$('profileFile').focus();
+    }
+    function closeProfile(){if(!profileBusy)$('profileDialog').close()}
+    function setProfileBusy(busy){profileBusy=busy;for(const id of ['profileFile','profileZoom','profileSave','profileRemove','profileClose'])$(id).disabled=busy||((id==='profileSave')&&!cropImage)||((id==='profileRemove')&&!profileImage)||((id==='profileZoom')&&!cropImage)}
+    function compressedProfileImage(){
+      const canvas=document.createElement('canvas');
+      for(const size of [256,224,192,160])for(const quality of [.86,.76,.66,.56,.46,.36]){
+        drawCrop(canvas,size);
+        let data=canvas.toDataURL('image/webp',quality);
+        if(!data.startsWith('data:image/webp;'))data=canvas.toDataURL('image/jpeg',quality);
+        if(data.length<43000)return data;
+      }
+      throw Error('画像を十分に圧縮できませんでした。別の画像をお試しください。');
+    }
+    $('profileEditButton').addEventListener('click',openProfile);
+    $('profileClose').addEventListener('click',closeProfile);
+    $('profileDialog').addEventListener('cancel',event=>{if(profileBusy)event.preventDefault()});
+    $('profileFile').addEventListener('change',event=>{
+      const file=event.target.files&&event.target.files[0];if(!file)return;
+      $('profileError').textContent='';
+      if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>12*1024*1024){$('profileError').textContent='JPEG・PNG・WebPの12MB以下の画像を選んでください。';return}
+      const url=URL.createObjectURL(file),image=new Image();
+      image.onload=()=>{URL.revokeObjectURL(url);cropImage=image;cropX=0;cropY=0;$('profileZoom').value='100';$('profileZoom').disabled=false;$('profileSave').disabled=false;$('profileCurrent').hidden=true;$('profileEmpty').hidden=true;$('profileCanvas').hidden=false;previewCrop()};
+      image.onerror=()=>{URL.revokeObjectURL(url);$('profileError').textContent='画像を開けませんでした。別の画像を選んでください。'};
+      image.src=url;
+    });
+    $('profileZoom').addEventListener('input',previewCrop);
+    let dragPoint=null;
+    $('profileCanvas').addEventListener('pointerdown',event=>{if(!cropImage)return;dragPoint={x:event.clientX,y:event.clientY};event.currentTarget.setPointerCapture(event.pointerId)});
+    $('profileCanvas').addEventListener('pointermove',event=>{if(!dragPoint)return;cropX+=event.clientX-dragPoint.x;cropY+=event.clientY-dragPoint.y;dragPoint={x:event.clientX,y:event.clientY};previewCrop()});
+    $('profileCanvas').addEventListener('pointerup',()=>{dragPoint=null});$('profileCanvas').addEventListener('pointercancel',()=>{dragPoint=null});
+    $('profileCanvas').addEventListener('keydown',event=>{if(!cropImage)return;const move={ArrowLeft:[-8,0],ArrowRight:[8,0],ArrowUp:[0,-8],ArrowDown:[0,8]}[event.key];if(!move)return;event.preventDefault();cropX+=move[0];cropY+=move[1];previewCrop()});
+    $('profileSave').addEventListener('click',async()=>{
+      if(!state.token||!cropImage||profileBusy)return;
+      const token=state.token;setProfileBusy(true);$('profileError').textContent='';
+      try{const result=await callServer('saveAccountProfileImage',token,compressedProfileImage());if(state.token!==token)return;if(!result||!result.ok)throw Error(result&&result.message||'保存できませんでした。');renderProfile(result);$('profileDialog').close()}
+      catch(error){if(state.token===token){if(isExpired(error))logOutLocal('ログインの有効期限が切れました。もう一度ログインしてください。');else $('profileError').textContent=message(error,'画像を保存できませんでした。')}}
+      finally{setProfileBusy(false)}
+    });
+    $('profileRemove').addEventListener('click',async()=>{
+      if(!state.token||!profileImage||profileBusy)return;
+      const token=state.token;setProfileBusy(true);$('profileError').textContent='';
+      try{const result=await callServer('removeAccountProfileImage',token);if(state.token!==token)return;if(!result||!result.ok)throw Error(result&&result.message||'削除できませんでした。');renderProfile(result);$('profileDialog').close()}
+      catch(error){if(state.token===token){if(isExpired(error))logOutLocal('ログインの有効期限が切れました。もう一度ログインしてください。');else $('profileError').textContent=message(error,'画像を削除できませんでした。')}}
+      finally{setProfileBusy(false)}
+    });
     function message(error,fallback){return error&&error.message?String(error.message):fallback}
     function clearBanner(){$('appError').hidden=true;$('appError').textContent='';$('appError').classList.remove('success-banner')}
     function showBanner(text,success){$('appError').textContent=text;$('appError').classList.toggle('success-banner',!!success);$('appError').hidden=false;window.scrollTo({top:0,behavior:'smooth'})}
     function isExpired(error){return /SESSION_EXPIRED|MANAGER_SESSION_EXPIRED/.test(message(error,''))}
-    function logOutLocal(reason){state.token='';state.data=null;state.loadSerial++;sendAuthBridge('clear');if($('storeDialog').open)$('storeDialog').close();if($('revokeDialog').open)$('revokeDialog').close();$('appView').hidden=true;$('loginView').hidden=false;$('loginPassword').value='';$('loginError').textContent=reason||'';$('loginId').focus()}
+    function logOutLocal(reason){state.token='';state.data=null;state.loadSerial++;profileImage='';renderProfile(null);sendAuthBridge('clear');if($('profileDialog').open)$('profileDialog').close();if($('storeDialog').open)$('storeDialog').close();if($('revokeDialog').open)$('revokeDialog').close();$('appView').hidden=true;$('loginView').hidden=false;$('loginPassword').value='';$('loginError').textContent=reason||'';$('loginId').focus()}
     function handleServerError(error,fallback){if(isExpired(error)){logOutLocal('ログインの有効期限が切れました。もう一度ログインしてください。');return}showBanner(message(error,fallback),false)}
-    $('loginForm').addEventListener('submit',async event=>{event.preventDefault();const button=$('loginButton');button.disabled=true;button.textContent='確認しています…';$('loginError').textContent='';try{const result=await callServer('managerLogin',$('loginId').value.trim(),$('loginPassword').value);if(!result||!result.ok){$('loginError').textContent=result&&result.message?result.message:'ログインできませんでした。';return}state.token=result.token;sendAuthBridge('set',state.token);$('loginPassword').value='';$('loginView').hidden=true;$('appView').hidden=false;await loadData(1)}catch(error){$('loginError').textContent=message(error,'ログインできませんでした。')}finally{button.disabled=false;button.textContent='ログイン'}});
+    async function refreshSecurityKeyStatus(){
+      if(!state.token)return;
+      const token=state.token;
+      try{
+        const status=await callServer('getManagerSecurityKeyStatus',token);
+        if(state.token!==token)return;
+        const list=$('securityKeyList');list.replaceChildren();
+        for(const key of Array.isArray(status&&status.keys)?status.keys:[]){
+          const item=document.createElement('li');item.textContent=String(key.label||'セキュリティキー');list.appendChild(item);
+        }
+        $('securityKeyStatus').textContent=status&&status.enrolled
+          ? '登録済み：'+number(status.keyCount)+'個。次回のログインからパスワードと登録済みキーが必要です。'
+          : '未登録。最初のキーを登録すると、manager のログインでキーが必須になります。';
+      }catch(error){
+        if(state.token!==token)return;
+        if(isExpired(error)){logOutLocal('ログインの有効期限が切れました。もう一度ログインしてください。');return}
+        $('securityKeyStatus').textContent='登録状況を読み込めませんでした。';
+        $('securityKeyError').textContent=message(error,'登録状況を読み込めませんでした。');
+      }
+    }
+    $('securityKeyEnroll').addEventListener('click',async()=>{
+      if(!state.token)return;
+      const token=state.token,button=$('securityKeyEnroll');
+      if($('securityKeyStatus').textContent.startsWith('未登録')&&
+          !window.confirm('最初のキーを登録すると、manager のログインにパスワードと登録済みキーの両方が必要になります。キーを紛失した場合は Apps Script の管理者による復旧が必要です。続けますか？'))return;
+      button.disabled=true;button.textContent='準備しています…';$('securityKeyError').textContent='';
+      try{
+        let started=await callServer('beginManagerSecurityKeyEnrollment',token);
+        if(state.token!==token)return;
+        if(!started||!started.ok||!started.publicKey||!started.flowId)throw Error(started&&started.message||'登録を開始できませんでした。');
+        if(started.stepUpRequired){
+          button.textContent='登録済みキーを確認しています…';
+          const proof=await requestSecurityKey('get',started.publicKey);
+          if(state.token!==token)return;
+          started=await callServer('completeManagerSecurityKeyEnrollmentStepUp',token,started.flowId,proof);
+          if(state.token!==token)return;
+          if(!started||!started.ok||!started.publicKey||!started.flowId)throw Error(started&&started.message||'追加キーの本人確認に失敗しました。');
+        }
+        button.textContent='キーに触れてください…';
+        const credential=await requestSecurityKey('create',started.publicKey);
+        if(state.token!==token)return;
+        button.textContent='登録を保存しています…';
+        const label=$('securityKeyLabel').value.trim()||'セキュリティキー';
+        const completed=await callServer('finishManagerSecurityKeyEnrollment',token,started.flowId,credential,label);
+        if(state.token!==token)return;
+        if(!completed||!completed.ok)throw Error(completed&&completed.message||'登録を保存できませんでした。');
+        if(completed.reauthenticationRequired){logOutLocal('キーを登録しました。新しい認証方式でログインし直してください。');return}
+        await refreshSecurityKeyStatus();showBanner('セキュリティキーを登録しました。',true);
+      }catch(error){
+        if(state.token===token){if(isExpired(error))logOutLocal('ログインの有効期限が切れました。もう一度ログインしてください。');else $('securityKeyError').textContent=message(error,'キーを登録できませんでした。')}
+      }finally{button.disabled=false;button.textContent='セキュリティキーを登録'}
+    });
+    $('loginForm').addEventListener('submit',async event=>{event.preventDefault();const button=$('loginButton');button.disabled=true;button.textContent='確認しています…';$('loginError').textContent='';try{let result=await callServer('managerLogin',$('loginId').value.trim(),$('loginPassword').value);if(!result||!result.ok){$('loginError').textContent=result&&result.message?result.message:'ログインできませんでした。';return}if(result.mfaRequired){button.textContent='キーに触れてください…';const credential=await requestSecurityKey('get',result.publicKey);result=await callServer('finishManagerSecurityKeyLogin',result.flowId,credential)}if(!result||!result.ok||!result.token){$('loginError').textContent=result&&result.message?result.message:'ログインできませんでした。';return}state.token=result.token;sendAuthBridge('set',state.token);$('loginPassword').value='';$('loginView').hidden=true;$('appView').hidden=false;renderProfile(null);loadProfile(state.token);refreshSecurityKeyStatus();await loadData(1)}catch(error){$('loginError').textContent=message(error,'ログインできませんでした。')}finally{button.disabled=false;button.textContent='ログイン'}});
     $('logoutButton').addEventListener('click',()=>{const token=state.token;logOutLocal('ログアウトしました。');if(token)callServer('managerLogout',token).catch(()=>{})});
     $('refreshButton').addEventListener('click',()=>loadData(state.page));$('prevPage').addEventListener('click',()=>{if(!state.loading&&state.page>1)loadData(state.page-1)});$('nextPage').addEventListener('click',()=>{const p=state.data&&state.data.pagination;if(!state.loading&&p&&state.page<Number(p.totalPages||1))loadData(state.page+1)});
     async function loadData(page){if(!state.token)return;const serial=++state.loadSerial;state.loading=true;clearBanner();$('loading').hidden=false;$('refreshButton').disabled=true;$('prevPage').disabled=true;$('nextPage').disabled=true;try{const data=await callServer('getManagementData',state.token,page);if(serial!==state.loadSerial||!state.token)return;state.data=data;state.page=Number(data.pagination&&data.pagination.page)||page;renderData(data)}catch(error){if(serial===state.loadSerial)handleServerError(error,'データを取得できませんでした。')}finally{if(serial===state.loadSerial){state.loading=false;$('loading').hidden=true;$('refreshButton').disabled=false;renderPager()}}}

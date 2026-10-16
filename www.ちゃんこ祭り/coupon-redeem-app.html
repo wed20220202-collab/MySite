@@ -4,15 +4,112 @@
   <base target="_top"><meta charset="utf-8">
   <style>
     :root{color-scheme:light;--deep:#4a1118;--red:#8f1f28;--green:#176b46;--cream:#fff9eb;--ink:#2d2520;--muted:#756b63;--line:#eadbc2}*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",sans-serif;color:var(--ink);background:radial-gradient(circle at 12% 0%,#fff3c9,transparent 30%),linear-gradient(135deg,#f8ead0,#fffdf8 52%,#f3e2c3)}button,input{font:inherit}.hidden{display:none!important}.shell{min-height:100vh;display:grid;place-items:center;padding:22px}.card{width:min(650px,100%);background:rgba(255,255,255,.95);border:1px solid var(--line);border-radius:26px;box-shadow:0 18px 60px rgba(74,17,24,.16);padding:30px}.eyebrow{color:var(--red);font-weight:800;letter-spacing:.12em}h1{font-family:serif;color:var(--deep);margin:8px 0;font-size:clamp(28px,6vw,42px)}p{line-height:1.7}.grid{display:grid;gap:15px;margin-top:20px}label{display:grid;gap:7px;font-weight:700}input{width:100%;padding:13px 14px;border:1px solid #d8c9b2;border-radius:12px}.btn{border:0;border-radius:999px;padding:14px 20px;font-weight:800;cursor:pointer}.primary{background:linear-gradient(135deg,var(--red),var(--deep));color:#fff}.success{background:linear-gradient(135deg,#25825b,var(--green));color:#fff}.secondary{background:#f1e5d2;color:var(--deep)}.btn:disabled{opacity:.55;cursor:wait}.error{min-height:1.5em;color:#b42318;margin-top:10px;font-weight:700}.notice{color:var(--green);font-weight:800}.manual{display:flex;gap:9px}.manual input{flex:1}.result{margin-top:20px;padding:22px;border:2px solid var(--line);border-radius:20px;text-align:center;background:#fff}.result.available{border-color:#79bd9a;background:#f0fff7}.result.used,.result.expired{border-color:#e6a09a;background:#fff5f4}.amount{font-family:serif;font-size:clamp(40px,10vw,68px);font-weight:900;color:var(--red);margin:8px 0}.status{font-size:22px;font-weight:900}.meta{color:var(--muted);line-height:1.8}.redeem{width:100%;margin-top:18px;font-size:20px}.account-actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 22px}.account-actions .btn{padding:9px 16px}.account-panel{border:1px solid var(--line);background:#fffaf1;border-radius:18px;padding:18px;margin:16px 0 22px}.account-panel h2{margin:0;color:var(--deep);font-family:serif}.account-panel .grid{margin-top:12px}.hint{font-size:13px;color:var(--muted);font-weight:400;line-height:1.6}.account-buttons{display:flex;flex-wrap:wrap;gap:8px}.account-buttons .btn{flex:1}@media(max-width:560px){.card{padding:22px 16px}.manual{display:grid}.account-buttons{display:grid}}
+    .profile-strip{display:flex;align-items:center;gap:11px;flex-wrap:wrap;margin:18px 0;padding:13px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(120deg,#fffaf0,#fff)}.profile-avatar{width:52px;height:52px;flex:none;border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 0 0 1px var(--red),0 3px 10px #4a111822}.profile-fallback{display:grid;place-items:center;background:var(--deep);color:#fff;font-family:serif;font-size:23px;font-weight:900}.profile-identity{min-width:120px;flex:1}.profile-identity strong,.profile-identity span{display:block}.profile-identity span{font-size:12px;color:var(--muted);overflow-wrap:anywhere}.account-actions{margin:0}.profile-strip .btn{padding:9px 15px;font-size:13px}.profile-logout{background:#fff;color:var(--red);border:1px solid #d8afa8}.profile-logout:hover{background:#fff1ee}dialog.profile-dialog{width:min(440px,calc(100% - 24px));max-height:calc(100dvh - 24px);overflow:auto;border:1px solid var(--line);border-radius:22px;padding:0;color:var(--ink);box-shadow:0 28px 80px #210a0c66}dialog.profile-dialog::backdrop{background:#1c1014aa}.profile-dialog-inner{padding:24px}.profile-dialog h2{font-family:serif;color:var(--deep);margin:0 0 6px}.profile-dialog p{margin:4px 0 14px;color:var(--muted);font-size:13px}.profile-preview{display:grid;place-items:center;width:220px;height:220px;margin:15px auto;border-radius:50%;overflow:hidden;background:#efe4d5;border:3px solid #fff;box-shadow:0 0 0 1px var(--red),0 8px 24px #210a0c1c;touch-action:none}.profile-preview canvas,.profile-preview img{width:220px;height:220px;object-fit:cover}.profile-preview canvas{cursor:grab;touch-action:none}.profile-preview canvas:active{cursor:grabbing}.profile-dialog input[type=range]{padding:0;accent-color:var(--red)}.profile-dialog .account-buttons{margin-top:16px}.profile-dialog .account-buttons .btn{padding:10px 13px}.profile-dialog .error{min-height:0}.profile-file{display:block;padding:11px;border:1px dashed var(--red);border-radius:12px;background:#fff}.profile-file input{padding:0;border:0;max-width:100%;font-size:13px}
   </style>
 </head>
 <body>
   <section id="loginView" class="shell"><div class="card"><div class="eyebrow">運営・加盟店スタッフ専用</div><h1>クーポン確認</h1><p>admin・manager・加盟店アカウントでログインできます。使用済み処理は取り消せません。</p><form id="loginForm" class="grid"><label>ログインID<input id="loginId" autocomplete="username" required></label><label>パスワード<input id="loginPassword" type="password" autocomplete="current-password" required></label><button id="loginButton" class="btn primary" type="submit">ログインして読み取る</button></form><div id="loginError" class="error" role="alert"></div><p id="loginNotice" class="notice hidden" role="status"></p></div></section>
-  <section id="scanView" class="shell hidden"><div class="card"><div class="eyebrow">千駄木ちゃんこ祭り</div><h1>クーポンを確認する</h1><p id="storeLabel"></p><div class="account-actions"><button id="accountToggle" class="btn secondary" type="button" aria-expanded="false" aria-controls="accountPanel">加盟店ID・パスワードを変更</button><button id="logoutButton" class="btn secondary" type="button">ログアウト</button></div><div id="accountPanel" class="account-panel hidden"><h2>アカウント設定</h2><p class="hint">変更には現在のパスワードが必要です。新しいパスワードを空欄にすると、今のパスワードを維持します。</p><form id="accountForm" class="grid"><label>新しい加盟店ID<input id="newLoginId" autocomplete="username" minlength="4" maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9._\-]{3,39}" required><span class="hint">先頭は半角英数字、以降は半角英数字と . _ - のみで4～40文字。admin・managerは使えません。</span></label><label>現在のパスワード<input id="currentPassword" type="password" autocomplete="current-password" required></label><label>新しいパスワード<input id="newPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128"><span class="hint">変更する場合は12文字以上。変更しない場合は空欄。</span></label><label>新しいパスワード（確認）<input id="newPasswordConfirm" type="password" autocomplete="new-password" minlength="12" maxlength="128"></label><div class="account-buttons"><button id="accountSave" class="btn primary" type="submit">変更を保存</button><button id="accountCancel" class="btn secondary" type="button">閉じる</button></div></form><div id="accountError" class="error" role="alert"></div></div><p>カメラは画面上の「カメラで読み取る」から起動できます。読み取れない場合は、お客様の画面にあるクーポンIDを入力してください。</p><div class="manual"><input id="manualCode" aria-label="クーポンIDまたはQRのコード" placeholder="例：SNDG-20261011-9CE5E9BC"><button id="checkButton" class="btn secondary" type="button">確認</button></div><div id="scanError" class="error" role="alert"></div><div id="result" class="result hidden"><div id="status" class="status"></div><div id="amount" class="amount"></div><div id="message"></div><div id="meta" class="meta"></div><button id="redeemButton" class="btn success redeem hidden" type="button">このクーポンを使用済みにする</button></div></div></section>
+  <section id="scanView" class="shell hidden"><div class="card"><div class="eyebrow">千駄木ちゃんこ祭り</div><h1>クーポンを確認する</h1><div class="profile-strip"><span id="profileFallback" class="profile-avatar profile-fallback" aria-hidden="true">店</span><img id="profileAvatar" class="profile-avatar hidden" alt="ログイン中のアカウント画像"><div class="profile-identity"><strong id="profileName">ログイン中</strong><span id="storeLabel"></span></div><div class="account-actions"><button id="profileEditButton" class="btn secondary" type="button">画像を設定</button><button id="accountToggle" class="btn secondary" type="button" aria-expanded="false" aria-controls="accountPanel">加盟店ID・パスワードを変更</button><button id="logoutButton" class="btn profile-logout" type="button">ログアウト</button></div></div><div id="accountPanel" class="account-panel hidden"><h2>アカウント設定</h2><p class="hint">変更には現在のパスワードが必要です。新しいパスワードを空欄にすると、今のパスワードを維持します。</p><form id="accountForm" class="grid"><label>新しい加盟店ID<input id="newLoginId" autocomplete="username" minlength="4" maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9._\-]{3,39}" required><span class="hint">先頭は半角英数字、以降は半角英数字と . _ - のみで4～40文字。admin・managerは使えません。</span></label><label>現在のパスワード<input id="currentPassword" type="password" autocomplete="current-password" required></label><label>新しいパスワード<input id="newPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128"><span class="hint">変更する場合は12文字以上。変更しない場合は空欄。</span></label><label>新しいパスワード（確認）<input id="newPasswordConfirm" type="password" autocomplete="new-password" minlength="12" maxlength="128"></label><div class="account-buttons"><button id="accountSave" class="btn primary" type="submit">変更を保存</button><button id="accountCancel" class="btn secondary" type="button">閉じる</button></div></form><div id="accountError" class="error" role="alert"></div></div><p>カメラは画面上の「カメラで読み取る」から起動できます。読み取れない場合は、お客様の画面にあるクーポンIDを入力してください。</p><div class="manual"><input id="manualCode" aria-label="クーポンIDまたはQRのコード" placeholder="例：SNDG-20261011-9CE5E9BC"><button id="checkButton" class="btn secondary" type="button">確認</button></div><div id="scanError" class="error" role="alert"></div><div id="result" class="result hidden"><div id="status" class="status"></div><div id="amount" class="amount"></div><div id="message"></div><div id="meta" class="meta"></div><button id="redeemButton" class="btn success redeem hidden" type="button">このクーポンを使用済みにする</button></div></div></section>
+  <dialog id="profileDialog" class="profile-dialog" aria-labelledby="profileDialogTitle"><div class="profile-dialog-inner"><h2 id="profileDialogTitle">アカウント画像</h2><p>画像はこのアカウントだけに保存します。位置をドラッグまたは矢印キーで調整できます。</p><label class="profile-file">画像を選択<input id="profileFile" type="file" accept="image/jpeg,image/png,image/webp"></label><div class="profile-preview"><img id="profileCurrent" class="hidden" alt="現在のアカウント画像"><canvas id="profileCanvas" width="220" height="220" tabindex="0" class="hidden" aria-label="切り抜きプレビュー。矢印キーで位置を変更"></canvas><span id="profileEmpty" aria-hidden="true">画像を選択してください</span></div><label for="profileZoom">拡大率<input id="profileZoom" type="range" min="100" max="300" value="100" disabled></label><p>JPEG・PNG・WebP、12MBまで。保存時に自動圧縮します。</p><div id="profileError" class="error" role="alert"></div><div class="account-buttons"><button id="profileRemove" class="btn secondary" type="button">画像を削除</button><button id="profileClose" class="btn secondary" type="button">閉じる</button><button id="profileSave" class="btn primary" type="button" disabled>画像を保存</button></div></div></dialog>
   <script>
     const $=id=>document.getElementById(id);
     const siteOrigin='https://wed20220202-collab.github.io';
     let sessionToken='',role='',storeName='',loginId='',activeToken='',queryToken='',bridgeNonce='',locationLoaded=false,lookupSerial=0,redeeming=false,accountSaving=false,loginInFlight=false,restorePending=false,restoreGeneration=0;
+    let profileImage='',cropImage=null,cropX=0,cropY=0,profileBusy=false;
+    function profileServer(method,...args){return new Promise((resolve,reject)=>{google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[method](...args)})}
+    function requestSecurityKey(publicKey){
+      if(!bridgeNonce||window.top===window)return Promise.reject(Error('セキュリティキーは公開QR確認サイトから利用してください。'));
+      const requestId=Array.from(crypto.getRandomValues(new Uint8Array(16)),byte=>byte.toString(16).padStart(2,'0')).join('');
+      return new Promise((resolve,reject)=>{
+        const timer=setTimeout(()=>{window.removeEventListener('message',onResponse);reject(Error('セキュリティキーの操作が時間切れになりました。'))},100000);
+        function onResponse(event){
+          const data=event.data;
+          if(event.source!==window.top||event.origin!==siteOrigin||!data||data.type!=='staff-webauthn-response'||data.nonce!==bridgeNonce||data.requestId!==requestId)return;
+          clearTimeout(timer);window.removeEventListener('message',onResponse);
+          if(data.ok&&data.credential)resolve(data.credential);else reject(Error(data.message||'セキュリティキーを確認できませんでした。'));
+        }
+        window.addEventListener('message',onResponse);
+        window.top.postMessage({type:'staff-webauthn-request',action:'get',nonce:bridgeNonce,requestId,publicKey},siteOrigin);
+      });
+    }
+    function validProfileImage(value){return typeof value==='string'&&value.length<44000&&/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(value)?value:''}
+    function renderProfile(profile){
+      profileImage=validProfileImage(profile&&profile.imageDataUrl);
+      const name=String(profile&&profile.displayName||'').trim()||(role==='merchant'?storeName:role==='manager'?'総括管理者':'運営管理者');
+      $('profileName').textContent=name||'ログイン中';$('profileFallback').textContent=(name||'店').slice(0,1);
+      $('storeLabel').textContent='ID：'+String(profile&&profile.loginId||loginId||role)+' ・ '+(role==='merchant'?'加盟店':role==='manager'?'manager':'admin');
+      $('profileAvatar').classList.toggle('hidden',!profileImage);$('profileFallback').classList.toggle('hidden',!!profileImage);
+      if(profileImage)$('profileAvatar').src=profileImage;else $('profileAvatar').removeAttribute('src');
+    }
+    async function loadProfile(token){
+      try{const profile=await profileServer('getAccountProfile',token);if(sessionToken===token&&profile&&profile.ok)renderProfile(profile)}
+      catch(error){if(sessionToken!==token)return;if(isExpired(error)){logoutSession('ログイン期限が切れました。もう一度ログインしてください。',false);return}$('scanError').textContent='アカウント画像を読み込めませんでした。画像設定から再試行できます。'}
+    }
+    function cropMetrics(){
+      const zoom=Number($('profileZoom').value)/100,scale=Math.max(220/cropImage.naturalWidth,220/cropImage.naturalHeight)*zoom;
+      const boundX=Math.max(0,(cropImage.naturalWidth*scale-220)/2),boundY=Math.max(0,(cropImage.naturalHeight*scale-220)/2);
+      cropX=Math.max(-boundX,Math.min(boundX,cropX));cropY=Math.max(-boundY,Math.min(boundY,cropY));
+      return {scale};
+    }
+    function drawCrop(canvas,size){
+      if(!cropImage)return;
+      const {scale}=cropMetrics(),side=220/scale;
+      canvas.width=size;canvas.height=size;
+      const context=canvas.getContext('2d');context.fillStyle='#fff';context.fillRect(0,0,size,size);
+      context.drawImage(cropImage,(cropImage.naturalWidth-side)/2-cropX/scale,(cropImage.naturalHeight-side)/2-cropY/scale,side,side,0,0,size,size);
+    }
+    function previewCrop(){if(cropImage)drawCrop($('profileCanvas'),220)}
+    function openProfile(){
+      if(redeeming||accountSaving)return;
+      cropImage=null;cropX=0;cropY=0;$('profileFile').value='';$('profileZoom').value='100';$('profileZoom').disabled=true;$('profileSave').disabled=true;$('profileError').textContent='';
+      $('profileCurrent').classList.toggle('hidden',!profileImage);$('profileCanvas').classList.add('hidden');$('profileEmpty').classList.toggle('hidden',!!profileImage);
+      $('profileRemove').disabled=!profileImage;if(profileImage)$('profileCurrent').src=profileImage;else $('profileCurrent').removeAttribute('src');
+      $('profileDialog').showModal();$('profileFile').focus();
+    }
+    function closeProfile(){if(!profileBusy)$('profileDialog').close()}
+    function setProfileBusy(busy){profileBusy=busy;for(const id of ['profileFile','profileZoom','profileSave','profileRemove','profileClose'])$(id).disabled=busy||((id==='profileSave')&&!cropImage)||((id==='profileRemove')&&!profileImage)||((id==='profileZoom')&&!cropImage)}
+    function compressedProfileImage(){
+      const canvas=document.createElement('canvas');
+      for(const size of [256,224,192,160])for(const quality of [.86,.76,.66,.56,.46,.36]){
+        drawCrop(canvas,size);
+        let data=canvas.toDataURL('image/webp',quality);
+        if(!data.startsWith('data:image/webp;'))data=canvas.toDataURL('image/jpeg',quality);
+        if(data.length<43000)return data;
+      }
+      throw Error('画像を十分に圧縮できませんでした。別の画像をお試しください。');
+    }
+    $('profileEditButton').addEventListener('click',openProfile);
+    $('profileClose').addEventListener('click',closeProfile);
+    $('profileDialog').addEventListener('cancel',event=>{if(profileBusy)event.preventDefault()});
+    $('profileFile').addEventListener('change',event=>{
+      const file=event.target.files&&event.target.files[0];if(!file)return;
+      $('profileError').textContent='';
+      if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>12*1024*1024){$('profileError').textContent='JPEG・PNG・WebPの12MB以下の画像を選んでください。';return}
+      const url=URL.createObjectURL(file),image=new Image();
+      image.onload=()=>{URL.revokeObjectURL(url);cropImage=image;cropX=0;cropY=0;$('profileZoom').value='100';$('profileZoom').disabled=false;$('profileSave').disabled=false;$('profileCurrent').classList.add('hidden');$('profileEmpty').classList.add('hidden');$('profileCanvas').classList.remove('hidden');previewCrop()};
+      image.onerror=()=>{URL.revokeObjectURL(url);$('profileError').textContent='画像を開けませんでした。別の画像を選んでください。'};
+      image.src=url;
+    });
+    $('profileZoom').addEventListener('input',previewCrop);
+    let dragPoint=null;
+    $('profileCanvas').addEventListener('pointerdown',event=>{if(!cropImage)return;dragPoint={x:event.clientX,y:event.clientY};event.currentTarget.setPointerCapture(event.pointerId)});
+    $('profileCanvas').addEventListener('pointermove',event=>{if(!dragPoint)return;cropX+=event.clientX-dragPoint.x;cropY+=event.clientY-dragPoint.y;dragPoint={x:event.clientX,y:event.clientY};previewCrop()});
+    $('profileCanvas').addEventListener('pointerup',()=>{dragPoint=null});$('profileCanvas').addEventListener('pointercancel',()=>{dragPoint=null});
+    $('profileCanvas').addEventListener('keydown',event=>{if(!cropImage)return;const move={ArrowLeft:[-8,0],ArrowRight:[8,0],ArrowUp:[0,-8],ArrowDown:[0,8]}[event.key];if(!move)return;event.preventDefault();cropX+=move[0];cropY+=move[1];previewCrop()});
+    $('profileSave').addEventListener('click',async()=>{
+      if(!sessionToken||!cropImage||profileBusy||redeeming||accountSaving)return;
+      const token=sessionToken;setProfileBusy(true);$('profileError').textContent='';
+      try{const result=await profileServer('saveAccountProfileImage',token,compressedProfileImage());if(sessionToken!==token)return;if(!result||!result.ok)throw Error(result&&result.message||'保存できませんでした。');renderProfile(result);$('profileDialog').close()}
+      catch(error){if(sessionToken===token){if(isExpired(error))logoutSession('ログイン期限が切れました。もう一度ログインしてください。',false);else $('profileError').textContent=(error&&error.message)||'画像を保存できませんでした。'}}
+      finally{setProfileBusy(false)}
+    });
+    $('profileRemove').addEventListener('click',async()=>{
+      if(!sessionToken||!profileImage||profileBusy||redeeming||accountSaving)return;
+      const token=sessionToken;setProfileBusy(true);$('profileError').textContent='';
+      try{const result=await profileServer('removeAccountProfileImage',token);if(sessionToken!==token)return;if(!result||!result.ok)throw Error(result&&result.message||'削除できませんでした。');renderProfile(result);$('profileDialog').close()}
+      catch(error){if(sessionToken===token){if(isExpired(error))logoutSession('ログイン期限が切れました。もう一度ログインしてください。',false);else $('profileError').textContent=(error&&error.message)||'画像を削除できませんでした。'}}
+      finally{setProfileBusy(false)}
+    });
     google.script.url.getLocation(locationInfo=>{
       queryToken=(locationInfo.parameter&&locationInfo.parameter.coupon)||'';
       bridgeNonce=(locationInfo.parameter&&locationInfo.parameter.bridge)||'';
@@ -49,9 +146,7 @@
       storeName=data.storeName||'';
       loginId=data.loginId||role;
       $('loginPassword').value='';
-      $('storeLabel').textContent=role==='merchant'
-        ?'利用店舗：'+storeName+'（ID：'+loginId+'）'
-        :role==='manager'?'ログイン中：総括管理者（manager）':'ログイン中：運営者（admin）';
+      renderProfile(null);loadProfile(token);
       $('accountToggle').classList.toggle('hidden',role!=='merchant');
       $('newLoginId').value=role==='merchant'?loginId:'';
       closeAccountPanel();
@@ -104,27 +199,31 @@
       }
       if(data.type==='coupon-scan'&&sessionToken)checkCoupon(data.code);
     });
-    $('loginForm').addEventListener('submit',e=>{
+    $('loginForm').addEventListener('submit',async e=>{
       e.preventDefault();
       if(restorePending||loginInFlight)return;
       loginInFlight=true;
       setLoginBusy(true);
       $('loginError').textContent='';
       $('loginNotice').classList.add('hidden');
-      google.script.run.withSuccessHandler(result=>{
-        loginInFlight=false;
-        setLoginBusy(false);
+      try{
+        let result=await profileServer('redeemLogin',$('loginId').value.trim(),$('loginPassword').value);
         if(!result||!result.ok){$('loginError').textContent=(result&&result.message)||'ログインできませんでした。';return}
+        if(result.mfaRequired){
+          setLoginBusy(true,'キーに触れてください…');
+          const credential=await requestSecurityKey(result.publicKey);
+          result=await profileServer('finishManagerSecurityKeyLogin',result.flowId,credential);
+        }
+        if(!result||!result.ok){$('loginError').textContent=result&&result.message||'セキュリティキーを確認できませんでした。';return}
         if(!/^[a-f0-9]{64}$/i.test(String(result.token||''))||!['admin','manager','merchant'].includes(result.role)){
           $('loginError').textContent='ログイン結果を確認できませんでした。';return;
         }
         applySession(result.token,result);
         if(bridgeNonce)window.top.postMessage({type:'coupon-reader-session-save',nonce:bridgeNonce,token:result.token},siteOrigin);
-      }).withFailureHandler(err=>{
+      }catch(err){
         loginInFlight=false;
-        setLoginBusy(false);
         $('loginError').textContent=(err&&err.message)||'ログインできませんでした。';
-      }).redeemLogin($('loginId').value.trim(),$('loginPassword').value);
+      }finally{loginInFlight=false;setLoginBusy(false)}
     });
     function closeAccountPanel(){
       $('accountPanel').classList.add('hidden');
@@ -137,6 +236,7 @@
     function logoutSession(notice,revoke=true){
       const oldToken=sessionToken;
       sessionToken='';role='';storeName='';loginId='';activeToken='';
+      profileImage='';if($('profileDialog').open)$('profileDialog').close();
       lookupSerial++;
       $('scanView').classList.add('hidden');
       $('loginView').classList.remove('hidden');
@@ -151,7 +251,7 @@
       if(locationLoaded&&bridgeNonce)window.top.postMessage({type:'coupon-reader-logout',nonce:bridgeNonce},siteOrigin);
       if(revoke&&oldToken)google.script.run.withFailureHandler(()=>{}).redeemLogout(oldToken);
     }
-    $('logoutButton').addEventListener('click',()=>{if(!redeeming&&!accountSaving)logoutSession('ログアウトしました。')});
+    $('logoutButton').addEventListener('click',()=>{if(!redeeming&&!accountSaving&&!profileBusy)logoutSession('ログアウトしました。')});
     $('accountToggle').addEventListener('click',()=>{
       if(role!=='merchant'||redeeming||accountSaving)return;
       const open=$('accountPanel').classList.contains('hidden');
@@ -165,6 +265,7 @@
       $('accountSave').textContent=busy?'変更しています…':'変更を保存';
       $('accountCancel').disabled=busy;
       $('accountToggle').disabled=busy;
+      $('profileEditButton').disabled=busy;
       $('logoutButton').disabled=busy;
       $('checkButton').disabled=busy;
       $('manualCode').disabled=busy;
@@ -220,10 +321,10 @@
       redeeming=true;lookupSerial++;
       const token=activeToken,requestSession=sessionToken,b=$('redeemButton');
       b.disabled=true;b.textContent='使用済みにしています…';
-      $('checkButton').disabled=true;$('manualCode').disabled=true;$('logoutButton').disabled=true;$('accountToggle').disabled=true;
+      $('checkButton').disabled=true;$('manualCode').disabled=true;$('logoutButton').disabled=true;$('accountToggle').disabled=true;$('profileEditButton').disabled=true;
       function finish(){
         redeeming=false;b.disabled=false;b.textContent='このクーポンを使用済みにする';
-        $('checkButton').disabled=false;$('manualCode').disabled=false;$('logoutButton').disabled=false;$('accountToggle').disabled=false;
+        $('checkButton').disabled=false;$('manualCode').disabled=false;$('logoutButton').disabled=false;$('accountToggle').disabled=false;$('profileEditButton').disabled=false;
       }
       google.script.run.withSuccessHandler(result=>{
         finish();if(sessionToken!==requestSession)return;

@@ -10,6 +10,7 @@
 </head>
 <body>
   <iframe id="issueFrame" title="千駄木ちゃんこ祭り クーポン発行" allow="camera" src="https://script.google.com/macros/s/AKfycbwphXfMQiKax7jESt6mOww5AAK4xDofqRDEA5sMaim84OQXj_QDAtilHOMo7sIymP_9/exec?page=coupon_issue&amp;authuser=0"></iframe>
+  <script src="staff-webauthn.js"></script>
   <script>
     (()=>{
       const key='chanko_coupon_issue_auth_v1';
@@ -41,11 +42,18 @@
       }
       window.addEventListener('message',event=>{
         const data=event.data;
-        if(!isTrustedOrigin(event.origin)||!isInsideIssueFrame(event.source)||!data||data.type!=='coupon-issue-auth-bridge'||!noncePattern.test(data.nonce||''))return;
-        if(!source&&data.action==='get'){
+        if(!isTrustedOrigin(event.origin)||!isInsideIssueFrame(event.source)||!data||!noncePattern.test(data.nonce||''))return;
+        if(!source&&data.type==='coupon-issue-auth-bridge'&&data.action==='get'){
           source=event.source;origin=event.origin;nonce=data.nonce;
         }
         if(event.source!==source||event.origin!==origin||data.nonce!==nonce)return;
+        if(data.type==='staff-webauthn-request'){
+          ChankoSecurityKey.handle(data,result=>{
+            source.postMessage({type:'staff-webauthn-response',nonce,...result},origin);
+          });
+          return;
+        }
+        if(data.type!=='coupon-issue-auth-bridge')return;
         if(data.action==='get'){
           const auth=savedAuth();reply('get',auth?auth.token:'',auth?auth.role:'');return;
         }

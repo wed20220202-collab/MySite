@@ -3,11 +3,12 @@
 <head>
   <base target="_top">
   <meta charset="utf-8">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.4.4/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.4.4/qrcode.min.js" integrity="sha384-0RsG1yo/crf/1Qc14sho26SXXOTngNCjgJw7fuvXBt9W/OChF/Ijx+aUuBDqQwEk" crossorigin="anonymous"></script>
   <style>
     :root{color-scheme:light;--deep:#4a1118;--red:#8f1f28;--gold:#d5a947;--cream:#fff9eb;--ink:#2d2520;--muted:#756b63;--line:#eadbc2}
     *{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",sans-serif;color:var(--ink);background:radial-gradient(circle at 12% 0%,#fff3c9,transparent 30%),linear-gradient(135deg,#f8ead0,#fffdf8 52%,#f3e2c3)}button,input,textarea{font:inherit}.hidden{display:none!important}
     .shell{min-height:100vh;display:grid;place-items:center;padding:24px}.card{width:min(580px,100%);background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:26px;box-shadow:0 18px 60px rgba(74,17,24,.16);padding:32px}.eyebrow{color:var(--red);font-weight:800;letter-spacing:.12em}.mark{font-size:44px}h1{font-family:serif;color:var(--deep);margin:8px 0;font-size:clamp(28px,6vw,42px)}p{line-height:1.75}.grid{display:grid;gap:16px;margin-top:24px}label{display:grid;gap:7px;font-weight:700}input,textarea{width:100%;padding:13px 14px;border:1px solid #d8c9b2;border-radius:12px;background:#fff;color:var(--ink)}textarea{min-height:76px;resize:vertical}.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}.btn{border:0;border-radius:999px;padding:14px 20px;font-weight:800;cursor:pointer}.primary{background:linear-gradient(135deg,var(--red),var(--deep));color:#fff;box-shadow:0 8px 20px rgba(143,31,40,.25)}.secondary{background:#f1e5d2;color:var(--deep)}.btn:disabled{opacity:.55;cursor:wait}.error{min-height:1.5em;color:#b42318;margin-top:10px;font-weight:700}.coupon{text-align:center;margin-top:28px;padding-top:24px;border-top:2px dashed var(--line)}.coupon canvas{width:min(300px,76vw)!important;height:auto!important;border:12px solid white;border-radius:18px;box-shadow:0 10px 28px rgba(0,0,0,.12)}.amount{font-family:serif;font-size:clamp(42px,10vw,72px);font-weight:900;color:var(--red);margin:8px 0}.notice{background:#fff0c2;border:1px solid #e7c46a;border-radius:14px;padding:12px 14px}.meta{display:grid;gap:7px;background:#fff8e6;border:1px solid var(--line);padding:16px;border-radius:16px;margin:18px 0;text-align:left}.actions{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}.small{font-size:13px;color:var(--muted)}.wallet-link{display:inline-block;margin:2px 0 14px;color:var(--red);font-weight:800;word-break:break-all}
+    .profile-strip{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:18px 0 22px;padding:13px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(120deg,#fffaf0,#fff)}.profile-avatar{width:52px;height:52px;flex:none;border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 0 0 1px var(--gold),0 3px 10px #4a111822}.profile-fallback{display:grid;place-items:center;background:var(--deep);color:#fff;font-family:serif;font-weight:900;font-size:23px}.profile-identity{min-width:110px;flex:1}.profile-identity strong,.profile-identity span{display:block}.profile-identity span{color:var(--muted);font-size:12px;overflow-wrap:anywhere}.profile-strip .btn{padding:9px 15px;font-size:13px}.profile-logout{background:#fff;color:var(--red);border:1px solid #d8afa8}.profile-logout:hover{background:#fff1ee}dialog.profile-dialog{width:min(440px,calc(100% - 24px));max-height:calc(100dvh - 24px);overflow:auto;border:1px solid var(--line);border-radius:22px;padding:0;color:var(--ink);box-shadow:0 28px 80px #210a0c66}dialog.profile-dialog::backdrop{background:#1c1014aa}.profile-dialog-inner{padding:24px}.profile-dialog h2{font-family:serif;color:var(--deep);margin:0 0 6px}.profile-dialog p{margin:4px 0 14px;color:var(--muted);font-size:13px}.profile-preview{display:grid;place-items:center;width:220px;height:220px;margin:15px auto;border-radius:50%;overflow:hidden;background:#efe4d5;border:3px solid #fff;box-shadow:0 0 0 1px var(--gold),0 8px 24px #210a0c1c;touch-action:none}.profile-preview canvas,.profile-preview img{width:220px;height:220px;object-fit:cover}.profile-preview canvas{cursor:grab;touch-action:none}.profile-preview canvas:active{cursor:grabbing}.profile-dialog input[type=range]{padding:0;accent-color:var(--red)}.profile-dialog .actions{justify-content:flex-end;margin-top:18px}.profile-dialog .actions .btn{padding:10px 15px}.profile-dialog .error{min-height:0}.profile-file{display:block;padding:11px;border:1px dashed var(--gold);border-radius:12px;background:#fff}.profile-file input{padding:0;border:0;max-width:100%;font-size:13px}
     @media(max-width:560px){.card{padding:24px 18px;border-radius:20px}.row{grid-template-columns:1fr}}
     @media print{body{background:white}.shell{padding:0}.card{box-shadow:none;border:0}.no-print{display:none!important}}
   </style>
@@ -26,8 +27,8 @@
   </section>
   <section id="issueView" class="shell hidden">
     <div class="card">
-      <div class="eyebrow">千駄木ちゃんこ祭り・運営管理者用</div><h1>お客様用QRを発行</h1><p class="no-print">金額と有効期限を設定し、購入者1名ごとにボタンを1回押してください。押すたびに別のクーポンがDBへ登録されます。</p>
-      <div class="actions no-print"><span id="roleLabel" class="small"></span><button id="logoutButton" class="btn secondary" type="button">ログアウト</button></div>
+      <div class="eyebrow">千駄木ちゃんこ祭り・運営スタッフ用</div><h1>お客様用QRを発行</h1><p class="no-print">金額と有効期限を設定し、購入者1名ごとにボタンを1回押してください。押すたびに別のクーポンがDBへ登録されます。</p>
+      <div class="profile-strip no-print"><span id="profileFallback" class="profile-avatar profile-fallback" aria-hidden="true">運</span><img id="profileAvatar" class="profile-avatar hidden" alt="ログイン中のアカウント画像"><div class="profile-identity"><strong id="profileName">運営アカウント</strong><span id="roleLabel">ログイン中</span></div><button id="profileEditButton" class="btn secondary" type="button">画像を設定</button><button id="logoutButton" class="btn profile-logout" type="button">ログアウト</button></div>
       <form id="issueForm" class="grid no-print">
         <div class="row"><label>割引額（円）<input id="amount" type="number" min="1" max="5000" step="1" value="100" required></label><label>有効期限<input id="expiresOn" type="date" required></label></div>
         <label>備考（任意）<textarea id="note" maxlength="200" placeholder="例：ちゃんこ購入特典"></textarea></label>
@@ -42,12 +43,13 @@
       </div>
     </div>
   </section>
+  <dialog id="profileDialog" class="profile-dialog" aria-labelledby="profileDialogTitle"><div class="profile-dialog-inner"><h2 id="profileDialogTitle">アカウント画像</h2><p>画像はこのアカウントだけに保存します。位置をドラッグまたは矢印キーで調整できます。</p><label class="profile-file">画像を選択<input id="profileFile" type="file" accept="image/jpeg,image/png,image/webp"></label><div class="profile-preview"><img id="profileCurrent" class="hidden" alt="現在のアカウント画像"><canvas id="profileCanvas" width="220" height="220" tabindex="0" class="hidden" aria-label="切り抜きプレビュー。矢印キーで位置を変更"></canvas><span id="profileEmpty" aria-hidden="true">画像を選択してください</span></div><label for="profileZoom">拡大率<input id="profileZoom" type="range" min="100" max="300" value="100" disabled></label><p>JPEG・PNG・WebP、12MBまで。保存時に自動圧縮します。</p><div id="profileError" class="error" role="alert"></div><div class="actions"><button id="profileRemove" class="btn secondary" type="button">画像を削除</button><button id="profileClose" class="btn secondary" type="button">閉じる</button><button id="profileSave" class="btn primary" type="button" disabled>画像を保存</button></div></div></dialog>
   <script>
     const $=id=>document.getElementById(id);
     const siteOrigin='https://wed20220202-collab.github.io';
     const tokenPattern=/^[a-f0-9]{64}$/;
     const bridgeNonce=Array.from(crypto.getRandomValues(new Uint8Array(16)),byte=>byte.toString(16).padStart(2,'0')).join('');
-    let sessionToken='',currentCoupon=null,loginAttempt=0;
+    let sessionToken='',currentCoupon=null,loginAttempt=0,profileImage='',cropImage=null,cropX=0,cropY=0,profileBusy=false;
     const defaultExpiry=new Date();defaultExpiry.setDate(defaultExpiry.getDate()+30);$('expiresOn').value=defaultExpiry.toISOString().slice(0,10);
 
     function server(method,...args){return new Promise((resolve,reject)=>{
@@ -66,11 +68,105 @@
         window.top.postMessage({type:'coupon-issue-auth-bridge',action,nonce:bridgeNonce,token,role},siteOrigin);
       });
     }
+    function requestSecurityKey(publicKey){
+      if(window.top===window)return Promise.reject(Error('セキュリティキーは公開QR発行サイトから利用してください。'));
+      const requestId=Array.from(crypto.getRandomValues(new Uint8Array(16)),byte=>byte.toString(16).padStart(2,'0')).join('');
+      return new Promise((resolve,reject)=>{
+        const timer=setTimeout(()=>{window.removeEventListener('message',onResponse);reject(Error('セキュリティキーの操作が時間切れになりました。'))},100000);
+        function onResponse(event){
+          const data=event.data;
+          if(event.source!==window.top||event.origin!==siteOrigin||!data||data.type!=='staff-webauthn-response'||data.nonce!==bridgeNonce||data.requestId!==requestId)return;
+          clearTimeout(timer);window.removeEventListener('message',onResponse);
+          if(data.ok&&data.credential)resolve(data.credential);else reject(Error(data.message||'セキュリティキーを確認できませんでした。'));
+        }
+        window.addEventListener('message',onResponse);
+        window.top.postMessage({type:'staff-webauthn-request',action:'get',nonce:bridgeNonce,requestId,publicKey},siteOrigin);
+      });
+    }
+    function validProfileImage(value){return typeof value==='string'&&value.length<44000&&/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(value)?value:''}
+    function renderProfile(profile,role){
+      profileImage=validProfileImage(profile&&profile.imageDataUrl);
+      const name=String(profile&&profile.displayName||'').trim()||(role==='manager'?'総括管理者':'運営管理者');
+      $('profileName').textContent=name;
+      $('roleLabel').textContent='ID：'+String(profile&&profile.loginId||role)+' ・ '+(role==='manager'?'manager':'admin');
+      $('profileFallback').textContent=name.slice(0,1);
+      $('profileAvatar').classList.toggle('hidden',!profileImage);
+      $('profileFallback').classList.toggle('hidden',!!profileImage);
+      if(profileImage)$('profileAvatar').src=profileImage;else $('profileAvatar').removeAttribute('src');
+    }
+    async function loadProfile(token,role){
+      try{const profile=await server('getAccountProfile',token);if(sessionToken===token&&profile&&profile.ok)renderProfile(profile,role)}
+      catch(error){if(sessionToken!==token)return;if(/SESSION_EXPIRED|MANAGER_SESSION_EXPIRED/.test(String(error&&error.message||''))){await expireSession();return}$('issueError').textContent='アカウント画像を読み込めませんでした。画像設定から再試行できます。'}
+    }
+    function cropMetrics(){
+      const zoom=Number($('profileZoom').value)/100,scale=Math.max(220/cropImage.naturalWidth,220/cropImage.naturalHeight)*zoom;
+      const boundX=Math.max(0,(cropImage.naturalWidth*scale-220)/2),boundY=Math.max(0,(cropImage.naturalHeight*scale-220)/2);
+      cropX=Math.max(-boundX,Math.min(boundX,cropX));cropY=Math.max(-boundY,Math.min(boundY,cropY));
+      return {scale};
+    }
+    function drawCrop(canvas,size){
+      if(!cropImage)return;
+      const {scale}=cropMetrics(),side=220/scale;
+      canvas.width=size;canvas.height=size;
+      const context=canvas.getContext('2d');context.fillStyle='#fff';context.fillRect(0,0,size,size);
+      context.drawImage(cropImage,(cropImage.naturalWidth-side)/2-cropX/scale,(cropImage.naturalHeight-side)/2-cropY/scale,side,side,0,0,size,size);
+    }
+    function previewCrop(){if(cropImage)drawCrop($('profileCanvas'),220)}
+    function openProfile(){
+      cropImage=null;cropX=0;cropY=0;$('profileFile').value='';$('profileZoom').value='100';$('profileZoom').disabled=true;$('profileSave').disabled=true;$('profileError').textContent='';
+      $('profileCurrent').classList.toggle('hidden',!profileImage);$('profileCanvas').classList.add('hidden');$('profileEmpty').classList.toggle('hidden',!!profileImage);
+      $('profileRemove').disabled=!profileImage;if(profileImage)$('profileCurrent').src=profileImage;else $('profileCurrent').removeAttribute('src');
+      $('profileDialog').showModal();$('profileFile').focus();
+    }
+    function closeProfile(){if(!profileBusy)$('profileDialog').close()}
+    function setProfileBusy(busy){profileBusy=busy;for(const id of ['profileFile','profileZoom','profileSave','profileRemove','profileClose'])$(id).disabled=busy||((id==='profileSave')&&!cropImage)||((id==='profileRemove')&&!profileImage)||((id==='profileZoom')&&!cropImage)}
+    function compressedProfileImage(){
+      const canvas=document.createElement('canvas');
+      for(const size of [256,224,192,160])for(const quality of [.86,.76,.66,.56,.46,.36]){
+        drawCrop(canvas,size);
+        let data=canvas.toDataURL('image/webp',quality);
+        if(!data.startsWith('data:image/webp;'))data=canvas.toDataURL('image/jpeg',quality);
+        if(data.length<43000)return data;
+      }
+      throw Error('画像を十分に圧縮できませんでした。別の画像をお試しください。');
+    }
+    $('profileEditButton').addEventListener('click',openProfile);
+    $('profileClose').addEventListener('click',closeProfile);
+    $('profileDialog').addEventListener('cancel',event=>{if(profileBusy)event.preventDefault()});
+    $('profileFile').addEventListener('change',event=>{
+      const file=event.target.files&&event.target.files[0];if(!file)return;
+      $('profileError').textContent='';
+      if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>12*1024*1024){$('profileError').textContent='JPEG・PNG・WebPの12MB以下の画像を選んでください。';return}
+      const url=URL.createObjectURL(file),image=new Image();
+      image.onload=()=>{URL.revokeObjectURL(url);cropImage=image;cropX=0;cropY=0;$('profileZoom').value='100';$('profileZoom').disabled=false;$('profileSave').disabled=false;$('profileCurrent').classList.add('hidden');$('profileEmpty').classList.add('hidden');$('profileCanvas').classList.remove('hidden');previewCrop()};
+      image.onerror=()=>{URL.revokeObjectURL(url);$('profileError').textContent='画像を開けませんでした。別の画像を選んでください。'};
+      image.src=url;
+    });
+    $('profileZoom').addEventListener('input',previewCrop);
+    let dragPoint=null;
+    $('profileCanvas').addEventListener('pointerdown',event=>{if(!cropImage)return;dragPoint={x:event.clientX,y:event.clientY};event.currentTarget.setPointerCapture(event.pointerId)});
+    $('profileCanvas').addEventListener('pointermove',event=>{if(!dragPoint)return;cropX+=event.clientX-dragPoint.x;cropY+=event.clientY-dragPoint.y;dragPoint={x:event.clientX,y:event.clientY};previewCrop()});
+    $('profileCanvas').addEventListener('pointerup',()=>{dragPoint=null});$('profileCanvas').addEventListener('pointercancel',()=>{dragPoint=null});
+    $('profileCanvas').addEventListener('keydown',event=>{if(!cropImage)return;const move={ArrowLeft:[-8,0],ArrowRight:[8,0],ArrowUp:[0,-8],ArrowDown:[0,8]}[event.key];if(!move)return;event.preventDefault();cropX+=move[0];cropY+=move[1];previewCrop()});
+    $('profileSave').addEventListener('click',async()=>{
+      if(!sessionToken||!cropImage||profileBusy)return;
+      const token=sessionToken;setProfileBusy(true);$('profileError').textContent='';
+      try{const result=await server('saveAccountProfileImage',token,compressedProfileImage());if(sessionToken!==token)return;if(!result||!result.ok)throw Error(result&&result.message||'保存できませんでした。');renderProfile(result,result.role||'admin');$('profileDialog').close()}
+      catch(error){if(sessionToken===token){if(/SESSION_EXPIRED|MANAGER_SESSION_EXPIRED/.test(String(error&&error.message||'')))await expireSession();else $('profileError').textContent=(error&&error.message)||'画像を保存できませんでした。'}}
+      finally{setProfileBusy(false)}
+    });
+    $('profileRemove').addEventListener('click',async()=>{
+      if(!sessionToken||!profileImage||profileBusy)return;
+      const token=sessionToken;setProfileBusy(true);$('profileError').textContent='';
+      try{const result=await server('removeAccountProfileImage',token);if(sessionToken!==token)return;if(!result||!result.ok)throw Error(result&&result.message||'削除できませんでした。');renderProfile(result,result.role||'admin');$('profileDialog').close()}
+      catch(error){if(sessionToken===token){if(/SESSION_EXPIRED|MANAGER_SESSION_EXPIRED/.test(String(error&&error.message||'')))await expireSession();else $('profileError').textContent=(error&&error.message)||'画像を削除できませんでした。'}}
+      finally{setProfileBusy(false)}
+    });
     function showLogin(message=''){
-      sessionToken='';currentCoupon=null;$('loginView').classList.remove('hidden');$('issueView').classList.add('hidden');$('loginForm').classList.remove('hidden');$('restoreMessage').classList.add('hidden');$('couponView').classList.add('hidden');$('loginError').textContent=message;
+      sessionToken='';currentCoupon=null;profileImage='';if($('profileDialog').open)$('profileDialog').close();$('loginView').classList.remove('hidden');$('issueView').classList.add('hidden');$('loginForm').classList.remove('hidden');$('restoreMessage').classList.add('hidden');$('couponView').classList.add('hidden');$('loginError').textContent=message;
     }
     function showIssuer(role){
-      $('loginPassword').value='';$('loginView').classList.add('hidden');$('issueView').classList.remove('hidden');$('roleLabel').textContent=(role==='manager'?'manager':'admin')+' でログイン中';
+      $('loginPassword').value='';$('loginView').classList.add('hidden');$('issueView').classList.remove('hidden');renderProfile(null,role);loadProfile(sessionToken,role);
     }
     async function expireSession(){
       loginAttempt++;showLogin('ログインの有効期限が切れました。もう一度ログインしてください。');await bridge('clear');
@@ -91,8 +187,14 @@
     $('loginForm').addEventListener('submit',async e=>{
       e.preventDefault();const b=$('loginButton'),attempt=++loginAttempt;b.disabled=true;b.textContent='確認しています…';$('loginError').textContent='';
       try{
-        const result=await server('issueLogin',$('loginId').value.trim(),$('loginPassword').value);
+        let result=await server('issueLogin',$('loginId').value.trim(),$('loginPassword').value);
         if(attempt!==loginAttempt)return;
+        if(result&&result.ok&&result.mfaRequired){
+          b.textContent='キーに触れてください…';
+          const credential=await requestSecurityKey(result.publicKey);
+          if(attempt!==loginAttempt)return;
+          result=await server('finishManagerSecurityKeyLogin',result.flowId,credential);
+        }
         if(!result||!result.ok||!tokenPattern.test(result.token||'')||!['admin','manager'].includes(result.role)){
           $('loginError').textContent=result&&result.message||'ログインできませんでした。';return;
         }
