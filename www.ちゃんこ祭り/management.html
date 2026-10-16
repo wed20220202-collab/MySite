@@ -14,7 +14,49 @@
   </style>
 </head>
 <body>
-  <iframe title="千駄木二丁目町会商店街総括管理サイト" src="https://script.google.com/macros/s/AKfycbwphXfMQiKax7jESt6mOww5AAK4xDofqRDEA5sMaim84OQXj_QDAtilHOMo7sIymP_9/exec?page=management&amp;authuser=0"></iframe>
+  <iframe id="managementApp" title="千駄木二丁目町会商店街総括管理サイト"></iframe>
   <noscript>管理サイトの表示には JavaScript を有効にしてください。</noscript>
+  <script>
+    const app = document.getElementById('managementApp');
+    const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
+    const storageKey = 'chanko_management_auth_v1';
+    const tokenPattern = /^[a-f0-9]{64}$/i;
+    app.src = 'https://script.google.com/macros/s/AKfycbwphXfMQiKax7jESt6mOww5AAK4xDofqRDEA5sMaim84OQXj_QDAtilHOMo7sIymP_9/exec?page=management&authuser=0&bridge=' + nonce;
+    let bridgeSource = null;
+    let bridgeOrigin = '';
+    function isInsideManagementFrame(sourceWindow) {
+      try {
+        let current = sourceWindow;
+        for (let depth = 0; depth < 8 && current; depth++) {
+          if (current === app.contentWindow) return true;
+          const parent = current.parent;
+          if (parent === current) break;
+          current = parent;
+        }
+      } catch (error) {}
+      return false;
+    }
+    window.addEventListener('message', event => {
+      if (!/^https:\/\/[a-z0-9.-]+\.googleusercontent\.com$/i.test(event.origin)) return;
+      if (!isInsideManagementFrame(event.source)) return;
+      const data = event.data;
+      if (!data || data.type !== 'management-auth-bridge' || data.nonce !== nonce) return;
+      if (bridgeSource && (event.source !== bridgeSource || event.origin !== bridgeOrigin)) return;
+      if (!bridgeSource) {
+        bridgeSource = event.source;
+        bridgeOrigin = event.origin;
+      }
+      if (data.action === 'get') {
+        let token = '';
+        try { token = sessionStorage.getItem(storageKey) || ''; } catch (error) {}
+        if (!tokenPattern.test(token)) token = '';
+        event.source.postMessage({ type: 'management-auth-bridge-result', action: 'get', nonce, token }, event.origin);
+      } else if (data.action === 'set' && tokenPattern.test(String(data.token || ''))) {
+        try { sessionStorage.setItem(storageKey, data.token); } catch (error) {}
+      } else if (data.action === 'clear') {
+        try { sessionStorage.removeItem(storageKey); } catch (error) {}
+      }
+    });
+  </script>
 </body>
 </html>

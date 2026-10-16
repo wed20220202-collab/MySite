@@ -9,6 +9,57 @@
   <style>html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#f8ead0}iframe{width:100%;height:100%;border:0}</style>
 </head>
 <body>
-  <iframe title="千駄木ちゃんこ祭り クーポン発行" allow="camera" src="https://script.google.com/macros/s/AKfycbwphXfMQiKax7jESt6mOww5AAK4xDofqRDEA5sMaim84OQXj_QDAtilHOMo7sIymP_9/exec?page=coupon_issue&amp;authuser=0"></iframe>
+  <iframe id="issueFrame" title="千駄木ちゃんこ祭り クーポン発行" allow="camera" src="https://script.google.com/macros/s/AKfycbwphXfMQiKax7jESt6mOww5AAK4xDofqRDEA5sMaim84OQXj_QDAtilHOMo7sIymP_9/exec?page=coupon_issue&amp;authuser=0"></iframe>
+  <script>
+    (()=>{
+      const key='chanko_coupon_issue_auth_v1';
+      const tokenPattern=/^[a-f0-9]{64}$/;
+      const noncePattern=/^[a-f0-9]{32}$/;
+      let source=null,origin='',nonce='';
+      function isTrustedOrigin(value){return /^https:\/\/[a-z0-9.-]+\.googleusercontent\.com$/i.test(value)}
+      function isInsideIssueFrame(sourceWindow){
+        const frameWindow=document.getElementById('issueFrame').contentWindow;
+        try{
+          let current=sourceWindow;
+          for(let depth=0;depth<8&&current;depth++){
+            if(current===frameWindow)return true;
+            const parent=current.parent;
+            if(parent===current)break;
+            current=parent;
+          }
+        }catch(_error){}
+        return false;
+      }
+      function savedAuth(){
+        try{
+          const parsed=JSON.parse(sessionStorage.getItem(key)||'null');
+          return parsed&&tokenPattern.test(parsed.token)&&['admin','manager'].includes(parsed.role)?parsed:null;
+        }catch(_error){return null}
+      }
+      function reply(action,token='',role=''){
+        if(source)source.postMessage({type:'coupon-issue-auth-bridge-result',action,nonce,token,role},origin);
+      }
+      window.addEventListener('message',event=>{
+        const data=event.data;
+        if(!isTrustedOrigin(event.origin)||!isInsideIssueFrame(event.source)||!data||data.type!=='coupon-issue-auth-bridge'||!noncePattern.test(data.nonce||''))return;
+        if(!source&&data.action==='get'){
+          source=event.source;origin=event.origin;nonce=data.nonce;
+        }
+        if(event.source!==source||event.origin!==origin||data.nonce!==nonce)return;
+        if(data.action==='get'){
+          const auth=savedAuth();reply('get',auth?auth.token:'',auth?auth.role:'');return;
+        }
+        if(data.action==='set'){
+          if(!tokenPattern.test(data.token||'')||!['admin','manager'].includes(data.role))return;
+          try{sessionStorage.setItem(key,JSON.stringify({token:data.token,role:data.role}))}catch(_error){}
+          reply('set');return;
+        }
+        if(data.action==='clear'){
+          try{sessionStorage.removeItem(key)}catch(_error){}
+          reply('clear');
+        }
+      });
+    })();
+  </script>
 </body>
 </html>

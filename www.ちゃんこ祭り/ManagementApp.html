@@ -40,15 +40,39 @@
   <script>
     const $=id=>document.getElementById(id);
     const state={token:'',data:null,page:1,loading:false,loadSerial:0,saving:false,revoking:false,revokeCount:0,revokeDigest:''};
+    const siteOrigin='https://wed20220202-collab.github.io';
+    let bridgeNonce='';
+    function sendAuthBridge(action,token){
+      if(!bridgeNonce)return;
+      window.top.postMessage({type:'management-auth-bridge',action,nonce:bridgeNonce,token:token||''},siteOrigin);
+    }
+    google.script.url.getLocation(locationInfo=>{
+      const value=String(locationInfo&&locationInfo.parameter&&locationInfo.parameter.bridge||'');
+      if(!/^[a-f0-9]{32}$/.test(value))return;
+      bridgeNonce=value;
+      if(state.token)sendAuthBridge('set',state.token);
+      else sendAuthBridge('get');
+    });
+    window.addEventListener('message',async event=>{
+      if(event.origin!==siteOrigin||event.source!==window.top||!bridgeNonce)return;
+      const data=event.data;
+      if(!data||data.type!=='management-auth-bridge-result'||data.action!=='get'||data.nonce!==bridgeNonce||state.token)return;
+      const token=String(data.token||'');
+      if(!/^[a-f0-9]{64}$/i.test(token))return;
+      state.token=token;
+      await loadData(1);
+      if(state.token===token&&state.data){$('loginView').hidden=true;$('appView').hidden=false}
+      else if(state.token===token){state.token='';$('loginError').textContent='保存済みログインを確認できませんでした。通信を確認して再読み込みするか、もう一度ログインしてください。'}
+    });
     const number=value=>Number(value||0).toLocaleString('ja-JP');
     function callServer(method,...args){return new Promise((resolve,reject)=>{try{google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[method](...args)}catch(error){reject(error)}})}
     function message(error,fallback){return error&&error.message?String(error.message):fallback}
     function clearBanner(){$('appError').hidden=true;$('appError').textContent='';$('appError').classList.remove('success-banner')}
     function showBanner(text,success){$('appError').textContent=text;$('appError').classList.toggle('success-banner',!!success);$('appError').hidden=false;window.scrollTo({top:0,behavior:'smooth'})}
     function isExpired(error){return /SESSION_EXPIRED|MANAGER_SESSION_EXPIRED/.test(message(error,''))}
-    function logOutLocal(reason){state.token='';state.data=null;state.loadSerial++;if($('storeDialog').open)$('storeDialog').close();if($('revokeDialog').open)$('revokeDialog').close();$('appView').hidden=true;$('loginView').hidden=false;$('loginPassword').value='';$('loginError').textContent=reason||'';$('loginId').focus()}
+    function logOutLocal(reason){state.token='';state.data=null;state.loadSerial++;sendAuthBridge('clear');if($('storeDialog').open)$('storeDialog').close();if($('revokeDialog').open)$('revokeDialog').close();$('appView').hidden=true;$('loginView').hidden=false;$('loginPassword').value='';$('loginError').textContent=reason||'';$('loginId').focus()}
     function handleServerError(error,fallback){if(isExpired(error)){logOutLocal('ログインの有効期限が切れました。もう一度ログインしてください。');return}showBanner(message(error,fallback),false)}
-    $('loginForm').addEventListener('submit',async event=>{event.preventDefault();const button=$('loginButton');button.disabled=true;button.textContent='確認しています…';$('loginError').textContent='';try{const result=await callServer('managerLogin',$('loginId').value.trim(),$('loginPassword').value);if(!result||!result.ok){$('loginError').textContent=result&&result.message?result.message:'ログインできませんでした。';return}state.token=result.token;$('loginPassword').value='';$('loginView').hidden=true;$('appView').hidden=false;await loadData(1)}catch(error){$('loginError').textContent=message(error,'ログインできませんでした。')}finally{button.disabled=false;button.textContent='ログイン'}});
+    $('loginForm').addEventListener('submit',async event=>{event.preventDefault();const button=$('loginButton');button.disabled=true;button.textContent='確認しています…';$('loginError').textContent='';try{const result=await callServer('managerLogin',$('loginId').value.trim(),$('loginPassword').value);if(!result||!result.ok){$('loginError').textContent=result&&result.message?result.message:'ログインできませんでした。';return}state.token=result.token;sendAuthBridge('set',state.token);$('loginPassword').value='';$('loginView').hidden=true;$('appView').hidden=false;await loadData(1)}catch(error){$('loginError').textContent=message(error,'ログインできませんでした。')}finally{button.disabled=false;button.textContent='ログイン'}});
     $('logoutButton').addEventListener('click',()=>{const token=state.token;logOutLocal('ログアウトしました。');if(token)callServer('managerLogout',token).catch(()=>{})});
     $('refreshButton').addEventListener('click',()=>loadData(state.page));$('prevPage').addEventListener('click',()=>{if(!state.loading&&state.page>1)loadData(state.page-1)});$('nextPage').addEventListener('click',()=>{const p=state.data&&state.data.pagination;if(!state.loading&&p&&state.page<Number(p.totalPages||1))loadData(state.page+1)});
     async function loadData(page){if(!state.token)return;const serial=++state.loadSerial;state.loading=true;clearBanner();$('loading').hidden=false;$('refreshButton').disabled=true;$('prevPage').disabled=true;$('nextPage').disabled=true;try{const data=await callServer('getManagementData',state.token,page);if(serial!==state.loadSerial||!state.token)return;state.data=data;state.page=Number(data.pagination&&data.pagination.page)||page;renderData(data)}catch(error){if(serial===state.loadSerial)handleServerError(error,'データを取得できませんでした。')}finally{if(serial===state.loadSerial){state.loading=false;$('loading').hidden=true;$('refreshButton').disabled=false;renderPager()}}}

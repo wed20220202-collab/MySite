@@ -44,23 +44,72 @@
     const coupon=new URLSearchParams(location.search).get('c');
     const nonce=Array.from(crypto.getRandomValues(new Uint8Array(16)),byte=>byte.toString(16).padStart(2,'0')).join('');
     $('couponApp').src=base+(coupon?'&coupon='+encodeURIComponent(coupon):'')+'&bridge='+nonce;
-    let readerWindow=null,readerOrigin='',scanner=null,scanLocked=false,cameraAttempt=0,cameraStarting=false,stopPending=Promise.resolve();
+    const authStorageKey='chanko_coupon_redeem_auth_v1';
+    let readerWindow=null,readerOrigin='',readerReady=false,scanner=null,scanLocked=false,cameraAttempt=0,cameraStarting=false,stopPending=Promise.resolve();
+
+    function savedSession(){
+      try{
+        const token=sessionStorage.getItem(authStorageKey)||'';
+        return /^[a-f0-9]{64}$/i.test(token)?token:'';
+      }catch(error){return ''}
+    }
+    function saveSession(token){
+      try{sessionStorage.setItem(authStorageKey,token);return true}catch(error){return false}
+    }
+    function clearSession(){
+      try{sessionStorage.removeItem(authStorageKey)}catch(error){}
+    }
+
+    function isInsideCouponFrame(sourceWindow){
+      const frameWindow=$('couponApp').contentWindow;
+      try{
+        let current=sourceWindow;
+        for(let depth=0;depth<8&&current;depth++){
+          if(current===frameWindow)return true;
+          const parent=current.parent;
+          if(parent===current)break;
+          current=parent;
+        }
+      }catch(error){}
+      return false;
+    }
 
     window.addEventListener('message',event=>{
       const data=event.data;
       if(!/^https:\/\/[a-z0-9.-]+\.googleusercontent\.com$/i.test(event.origin))return;
+      if(!isInsideCouponFrame(event.source))return;
       if(!data||data.nonce!==nonce)return;
+      // Apps Script の HTML は外側 iframe 内にさらにネストされるため、最初の正しい
+      // nonce を持つ送信元を固定し、以後は同じ Window と origin だけを受け付ける。
+      if(!readerWindow){
+        if(data.type!=='coupon-reader-session-request'&&data.type!=='coupon-reader-ready')return;
+        readerWindow=event.source;readerOrigin=event.origin;
+      }
+      if(event.source!==readerWindow||event.origin!==readerOrigin)return;
+      if(data.type==='coupon-reader-session-request'){
+        readerWindow.postMessage({type:'coupon-reader-session-response',nonce:nonce,token:savedSession()},readerOrigin);
+        return;
+      }
+      if(data.type==='coupon-reader-session-save'){
+        const saved=/^[a-f0-9]{64}$/i.test(String(data.token||''))&&saveSession(data.token);
+        readerWindow.postMessage({type:'coupon-reader-session-save-result',nonce:nonce,saved:saved},readerOrigin);
+        return;
+      }
+      if(data.type==='coupon-reader-session-clear'){
+        clearSession();
+        return;
+      }
       if(data.type==='coupon-reader-logout'){
+        clearSession();
         cameraAttempt++;
+        readerReady=false;
         $('scanAgain').hidden=true;
         $('cameraPanel').hidden=true;
-        readerWindow=null;
-        readerOrigin='';
         stopCamera();
         return;
       }
       if(data.type!=='coupon-reader-ready')return;
-      readerWindow=event.source;readerOrigin=event.origin;
+      readerReady=true;
       $('scanAgain').hidden=false;
       if(data.showCamera)$('cameraPanel').hidden=false;
     });
@@ -68,7 +117,7 @@
     $('scanAgain').addEventListener('click',()=>{$('cameraError').textContent='';$('cameraPanel').hidden=false});
     $('manualEntry').addEventListener('click',()=>{cameraAttempt++;$('cameraPanel').hidden=true;stopCamera()});
     $('startCamera').addEventListener('click',async()=>{
-      if(!readerWindow||cameraStarting)return;
+      if(!readerReady||!readerWindow||cameraStarting)return;
       const attempt=++cameraAttempt;
       cameraStarting=true;
       $('cameraError').textContent='カメラの許可を待っています。使えない場合はIDを手入力してください。';$('startCamera').disabled=true;scanLocked=false;
@@ -96,7 +145,7 @@
       return stopPending;
     }
     async function onScan(text){
-      if(scanLocked||$('cameraPanel').hidden)return;
+      if(!readerReady||scanLocked||$('cameraPanel').hidden)return;
       const value=String(text||'').trim();
       let code=value;
       try{const url=new URL(value);code=url.searchParams.get('c')||url.searchParams.get('coupon')||''}catch(error){}

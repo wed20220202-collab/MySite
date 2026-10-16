@@ -142,6 +142,34 @@ function adminLogout(token) {
   return true;
 }
 
+function issueLogin(id, password) {
+  const loginId = String(id || '');
+  const role = loginId === ADMIN_ID ? ADMIN_ID : loginId === MANAGER_ID ? MANAGER_ID : '';
+  if (!role) return { ok: false, message: 'IDまたはパスワードが違います。' };
+  const result = role === ADMIN_ID ? adminLogin(loginId, password) : managerLogin(loginId, password);
+  return result.ok ? { ok: true, token: result.token, role: role } : result;
+}
+
+function restoreIssueSession(token) {
+  try {
+    const staff = requireStaffSession_(token, false);
+    return { ok: true, role: staff.role };
+  } catch (error) {
+    if (String(error.message || error) !== 'SESSION_EXPIRED') throw error;
+    return { ok: false, message: 'SESSION_EXPIRED' };
+  }
+}
+
+function issueLogout(token) {
+  const sessionToken = String(token || '');
+  if (/^[a-f0-9]{64}$/.test(sessionToken)) {
+    const cache = CacheService.getScriptCache();
+    cache.remove('admin:' + sessionToken);
+    cache.remove('manager:' + sessionToken);
+  }
+  return true;
+}
+
 function managerLogin(id, password) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -267,6 +295,43 @@ function merchantLogin(id, password) {
 function merchantLogout(token) {
   if (/^[a-f0-9]{64}$/.test(String(token || ''))) {
     CacheService.getScriptCache().remove('merchant:' + token);
+  }
+  return true;
+}
+
+function redeemLogin(id, password) {
+  const loginId = String(id || '');
+  if (loginId === ADMIN_ID || loginId === MANAGER_ID) {
+    const result = issueLogin(loginId, password);
+    return result.ok ? { ok: true, token: result.token, role: result.role } : result;
+  }
+  const result = merchantLogin(loginId, password);
+  return result.ok ? Object.assign({ role: 'merchant' }, result) : result;
+}
+
+function restoreRedeemSession(token) {
+  try {
+    const staff = requireStaffSession_(token, true);
+    const result = { ok: true, role: staff.role };
+    if (staff.role === 'merchant') {
+      result.storeId = staff.storeId;
+      result.storeName = staff.storeName;
+      result.loginId = staff.loginId;
+    }
+    return result;
+  } catch (error) {
+    if (String(error.message || error) !== 'SESSION_EXPIRED') throw error;
+    return { ok: false, message: 'SESSION_EXPIRED' };
+  }
+}
+
+function redeemLogout(token) {
+  const sessionToken = String(token || '');
+  if (/^[a-f0-9]{64}$/.test(sessionToken)) {
+    const cache = CacheService.getScriptCache();
+    cache.remove('admin:' + sessionToken);
+    cache.remove('manager:' + sessionToken);
+    cache.remove('merchant:' + sessionToken);
   }
   return true;
 }
@@ -627,7 +692,7 @@ function setupCouponSystem() {
 }
 
 function issueCoupon(sessionToken, request) {
-  requireAdmin_(sessionToken);
+  requireStaffSession_(sessionToken, false);
   const amount = Number(request && request.amount);
   if (!Number.isInteger(amount) || amount < 1 || amount > 5000) {
     throw new Error('割引額は1円から5,000円の整数で指定してください。');
@@ -645,6 +710,7 @@ function issueCoupon(sessionToken, request) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
+    const issuer = requireStaffSession_(sessionToken, false);
     const sheet = getCouponSheet_();
     ensureCouponHeaders_(sheet);
     const rawToken = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '');
@@ -659,10 +725,9 @@ function issueCoupon(sessionToken, request) {
       expiresAt,
       '',
       '',
-      ADMIN_ID,
+      issuer.role,
       clean_(request && request.note, 200)
     ]);
-    CacheService.getScriptCache().put('admin:' + sessionToken, '1', ADMIN_SESSION_SECONDS);
     return {
       ok: true,
       couponId: couponId,
@@ -1013,6 +1078,25 @@ function requireManager_(token) {
   }
 }
 
+function requireStaffSession_(token, allowMerchant) {
+  const sessionToken = String(token || '');
+  if (!/^[a-f0-9]{64}$/.test(sessionToken)) throw new Error('SESSION_EXPIRED');
+  const cache = CacheService.getScriptCache();
+  if (cache.get('admin:' + sessionToken) === '1') {
+    cache.put('admin:' + sessionToken, '1', ADMIN_SESSION_SECONDS);
+    return { role: ADMIN_ID, operatorName: '運営管理者（admin）' };
+  }
+  if (cache.get('manager:' + sessionToken) === '1') {
+    cache.put('manager:' + sessionToken, '1', MANAGER_SESSION_SECONDS);
+    return { role: MANAGER_ID, operatorName: '総括管理者（manager）' };
+  }
+  if (allowMerchant) {
+    const merchant = requireMerchant_(sessionToken);
+    return Object.assign({ role: 'merchant', operatorName: merchant.storeName }, merchant);
+  }
+  throw new Error('SESSION_EXPIRED');
+}
+
 function requireMerchant_(token) {
   const sessionToken = String(token || '');
   if (!/^[a-f0-9]{64}$/.test(sessionToken)) throw new Error('SESSION_EXPIRED');
@@ -1242,6 +1326,11 @@ function response_(status) {
 
 function lookupCouponForMerchant(sessionToken, input) {
   requireMerchant_(sessionToken);
+  return lookupCouponForStaff(sessionToken, input);
+}
+
+function lookupCouponForStaff(sessionToken, input) {
+  requireStaffSession_(sessionToken, true);
   if (!normalizeCouponToken_(input) && !normalizeCouponId_(input)) {
     return { ok: false, status: 'INVALID', message: 'QRコードまたはクーポンIDを確認してください。' };
   }
@@ -1255,6 +1344,11 @@ function lookupCouponForMerchant(sessionToken, input) {
 
 function redeemCouponByMerchant(sessionToken, input) {
   requireMerchant_(sessionToken);
+  return redeemCouponByStaff(sessionToken, input);
+}
+
+function redeemCouponByStaff(sessionToken, input) {
+  requireStaffSession_(sessionToken, true);
   if (!normalizeCouponToken_(input) && !normalizeCouponId_(input)) {
     return { ok: false, status: 'INVALID', message: 'QRコードまたはクーポンIDを確認してください。' };
   }
@@ -1262,7 +1356,7 @@ function redeemCouponByMerchant(sessionToken, input) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    const merchant = requireMerchant_(sessionToken);
+    const staff = requireStaffSession_(sessionToken, true);
     const record = findCouponForMerchant_(input);
     if (record && record.duplicate) {
       return { ok: false, status: 'INVALID', message: '同じIDのクーポンが複数あります。管理者に確認してください。' };
@@ -1277,7 +1371,7 @@ function redeemCouponByMerchant(sessionToken, input) {
       record.values[4],
       record.values[5],
       redeemedAt,
-      merchant.storeName
+      staff.operatorName
     ]]);
     SpreadsheetApp.flush();
     return {

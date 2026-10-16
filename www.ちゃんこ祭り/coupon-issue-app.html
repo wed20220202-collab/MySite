@@ -15,8 +15,9 @@
 <body>
   <section id="loginView" class="shell">
     <div class="card">
-      <div class="mark">🍲</div><div class="eyebrow">店舗・販売スタッフ専用</div><h1>クーポン発行</h1><p>購入者1名ごとに新しいQRを発行し、お客様のスマートフォンで読み取っていただきます。</p>
-      <form id="loginForm" class="grid">
+      <div class="mark">🍲</div><div class="eyebrow">運営管理者専用</div><h1>クーポン発行</h1><p>admin または manager のアカウントでログインしてください。購入者1名ごとに新しいQRを発行します。</p>
+      <p id="restoreMessage" class="small">保存されたログインを確認しています…</p>
+      <form id="loginForm" class="grid hidden">
         <label>ID<input id="loginId" autocomplete="username" required></label>
         <label>パスワード<input id="loginPassword" type="password" autocomplete="current-password" required></label>
         <button id="loginButton" class="btn primary" type="submit">ログイン</button>
@@ -25,7 +26,8 @@
   </section>
   <section id="issueView" class="shell hidden">
     <div class="card">
-      <div class="eyebrow">千駄木ちゃんこ祭り・店舗用</div><h1>お客様用QRを発行</h1><p class="no-print">金額と有効期限を設定し、購入者1名ごとにボタンを1回押してください。押すたびに別のクーポンがDBへ登録されます。</p>
+      <div class="eyebrow">千駄木ちゃんこ祭り・運営管理者用</div><h1>お客様用QRを発行</h1><p class="no-print">金額と有効期限を設定し、購入者1名ごとにボタンを1回押してください。押すたびに別のクーポンがDBへ登録されます。</p>
+      <div class="actions no-print"><span id="roleLabel" class="small"></span><button id="logoutButton" class="btn secondary" type="button">ログアウト</button></div>
       <form id="issueForm" class="grid no-print">
         <div class="row"><label>割引額（円）<input id="amount" type="number" min="1" max="5000" step="1" value="100" required></label><label>有効期限<input id="expiresOn" type="date" required></label></div>
         <label>備考（任意）<textarea id="note" maxlength="200" placeholder="例：ちゃんこ購入特典"></textarea></label>
@@ -41,12 +43,81 @@
     </div>
   </section>
   <script>
-    const $=id=>document.getElementById(id);let sessionToken='';let currentCoupon=null;
+    const $=id=>document.getElementById(id);
+    const siteOrigin='https://wed20220202-collab.github.io';
+    const tokenPattern=/^[a-f0-9]{64}$/;
+    const bridgeNonce=Array.from(crypto.getRandomValues(new Uint8Array(16)),byte=>byte.toString(16).padStart(2,'0')).join('');
+    let sessionToken='',currentCoupon=null,loginAttempt=0;
     const defaultExpiry=new Date();defaultExpiry.setDate(defaultExpiry.getDate()+30);$('expiresOn').value=defaultExpiry.toISOString().slice(0,10);
-    $('loginForm').addEventListener('submit',e=>{e.preventDefault();const b=$('loginButton');b.disabled=true;b.textContent='確認しています…';$('loginError').textContent='';google.script.run.withSuccessHandler(result=>{b.disabled=false;b.textContent='ログイン';if(!result.ok){$('loginError').textContent=result.message;return}sessionToken=result.token;$('loginView').classList.add('hidden');$('issueView').classList.remove('hidden')}).withFailureHandler(err=>{b.disabled=false;b.textContent='ログイン';$('loginError').textContent=err.message||'ログインできませんでした。'}).adminLogin($('loginId').value,$('loginPassword').value)});
-    $('issueForm').addEventListener('submit',e=>{e.preventDefault();const b=$('issueButton');b.disabled=true;b.textContent='新規発行しています…';$('issueError').textContent='';google.script.run.withSuccessHandler(showCoupon).withFailureHandler(err=>{b.disabled=false;b.textContent='新しいクーポンを発行';$('issueError').textContent=err.message||'発行できませんでした。'}).issueCoupon(sessionToken,{amount:Number($('amount').value),expiresOn:$('expiresOn').value,note:$('note').value})});
+
+    function server(method,...args){return new Promise((resolve,reject)=>{
+      google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[method](...args);
+    })}
+    function bridge(action,token='',role=''){
+      if(window.top===window)return Promise.resolve(null);
+      return new Promise(resolve=>{
+        const timer=setTimeout(()=>{window.removeEventListener('message',receive);resolve(null)},1800);
+        function receive(event){
+          const data=event.data;
+          if(event.source!==window.top||event.origin!==siteOrigin||!data||data.type!=='coupon-issue-auth-bridge-result'||data.action!==action||data.nonce!==bridgeNonce)return;
+          clearTimeout(timer);window.removeEventListener('message',receive);resolve(data);
+        }
+        window.addEventListener('message',receive);
+        window.top.postMessage({type:'coupon-issue-auth-bridge',action,nonce:bridgeNonce,token,role},siteOrigin);
+      });
+    }
+    function showLogin(message=''){
+      sessionToken='';currentCoupon=null;$('loginView').classList.remove('hidden');$('issueView').classList.add('hidden');$('loginForm').classList.remove('hidden');$('restoreMessage').classList.add('hidden');$('couponView').classList.add('hidden');$('loginError').textContent=message;
+    }
+    function showIssuer(role){
+      $('loginPassword').value='';$('loginView').classList.add('hidden');$('issueView').classList.remove('hidden');$('roleLabel').textContent=(role==='manager'?'manager':'admin')+' でログイン中';
+    }
+    async function expireSession(){
+      loginAttempt++;showLogin('ログインの有効期限が切れました。もう一度ログインしてください。');await bridge('clear');
+    }
+    async function restoreLogin(){
+      let saved=await bridge('get');
+      if(!saved&&window.top!==window)saved=await bridge('get');
+      if(!saved||!tokenPattern.test(saved.token||'')||!['admin','manager'].includes(saved.role)){showLogin();return}
+      try{
+        const result=await server('restoreIssueSession',saved.token);
+        if(!result||!result.ok||!['admin','manager'].includes(result.role)){await bridge('clear');showLogin('保存されたログインの有効期限が切れました。もう一度ログインしてください。');return}
+        sessionToken=saved.token;showIssuer(result.role);
+      }catch(error){
+        // 通信障害では保存したトークンを消さず、再読み込みで再検証できるようにする。
+        showLogin((error&&error.message)||'保存されたログインを確認できませんでした。再度ログインしてください。');
+      }
+    }
+    $('loginForm').addEventListener('submit',async e=>{
+      e.preventDefault();const b=$('loginButton'),attempt=++loginAttempt;b.disabled=true;b.textContent='確認しています…';$('loginError').textContent='';
+      try{
+        const result=await server('issueLogin',$('loginId').value.trim(),$('loginPassword').value);
+        if(attempt!==loginAttempt)return;
+        if(!result||!result.ok||!tokenPattern.test(result.token||'')||!['admin','manager'].includes(result.role)){
+          $('loginError').textContent=result&&result.message||'ログインできませんでした。';return;
+        }
+        sessionToken=result.token;await bridge('set',sessionToken,result.role);if(attempt!==loginAttempt)return;showIssuer(result.role);
+      }catch(error){if(attempt===loginAttempt)$('loginError').textContent=(error&&error.message)||'ログインできませんでした。'}
+      finally{if(attempt===loginAttempt){b.disabled=false;b.textContent='ログイン'}}
+    });
+    $('logoutButton').addEventListener('click',async()=>{
+      const oldToken=sessionToken;loginAttempt++;showLogin();const cleared=bridge('clear');if(oldToken)server('issueLogout',oldToken).catch(()=>{});await cleared;
+    });
+    $('issueForm').addEventListener('submit',async e=>{
+      e.preventDefault();if(!sessionToken)return;const b=$('issueButton'),requestToken=sessionToken;b.disabled=true;b.textContent='新規発行しています…';$('issueError').textContent='';
+      try{
+        const result=await server('issueCoupon',requestToken,{amount:Number($('amount').value),expiresOn:$('expiresOn').value,note:$('note').value});
+        if(sessionToken!==requestToken)return;if(!result||result.ok===false)throw Error(result&&result.message||'発行できませんでした。');showCoupon(result);
+      }catch(error){
+        if(sessionToken!==requestToken)return;
+        const message=(error&&error.message)||'発行できませんでした。';
+        if(/SESSION_EXPIRED|MANAGER_SESSION_EXPIRED/.test(message)){await expireSession();return}
+        $('issueError').textContent=message;
+      }finally{b.disabled=false;if(!currentCoupon)b.textContent='新しいクーポンを発行'}
+    });
     function showCoupon(result){currentCoupon=result;$('issueButton').disabled=false;$('issueButton').textContent='次のお客様用クーポンを発行';$('couponView').classList.remove('hidden');$('couponAmount').textContent=result.amount.toLocaleString('ja-JP')+'円引き';$('couponId').textContent=result.couponId;$('couponExpiry').textContent=result.expiresOn;$('walletLink').href=result.walletUrl;const canvas=$('qrCanvas');const context=canvas.getContext('2d');context.clearRect(0,0,canvas.width,canvas.height);QRCode.toCanvas(canvas,result.walletUrl,{width:360,margin:2,errorCorrectionLevel:'H'},err=>{if(err)$('issueError').textContent='QR画像を作成できませんでした。URLを再読み込みしてください。'});$('couponView').scrollIntoView({behavior:'smooth',block:'center'})}
     $('downloadButton').addEventListener('click',()=>{if(!currentCoupon)return;const a=document.createElement('a');a.download=currentCoupon.couponId+'.png';a.href=$('qrCanvas').toDataURL('image/png');a.click()});
+    restoreLogin();
   </script>
 </body>
 </html>
