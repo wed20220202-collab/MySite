@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#571b25">
+  <meta name="description" content="千駄木ちゃんこ祭りのクーポン案内。お手持ちのクーポン、利用できる店舗、関係者向けの発行・確認・管理ページへ進めます。">
+  <title>クーポン案内｜千駄木ちゃんこ祭り</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --wine: #571b25;
+      --red: #8f2732;
+      --gold: #b88432;
+      --ink: #302923;
+      --muted: #665a50;
+      --line: #e7d9c5;
+      --paper: #fffdf7;
+      --canvas: #f8f1e5;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--ink);
+      background: var(--canvas);
+      font-family: "Yu Gothic", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      line-height: 1.65;
+    }
+    a { color: inherit; }
+    a:focus-visible { outline: 3px solid #126e83; outline-offset: 5px; }
+    .skip-link {
+      position: absolute;
+      z-index: 5;
+      top: -100px;
+      left: 12px;
+      padding: 8px 14px;
+      background: white;
+      border-radius: 8px;
+    }
+    .skip-link:focus { top: 12px; }
+    .hero {
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+      color: #fff;
+      background:
+        radial-gradient(circle at 83% 11%, #d296494d 0, transparent 24rem),
+        linear-gradient(120deg, #48141d, #74242a 60%, #9a422b);
+      border-bottom: 5px solid #d9ad62;
+    }
+    .hero::before,
+    .hero::after {
+      content: "";
+      position: absolute;
+      z-index: -1;
+      width: 28rem;
+      aspect-ratio: 1;
+      border: 1px solid #ffffff30;
+      border-radius: 50%;
+      box-shadow: 0 0 0 2rem #ffffff09, 0 0 0 4rem #ffffff07;
+      pointer-events: none;
+    }
+    .hero::before { top: -20rem; left: -10rem; }
+    .hero::after { right: -12rem; bottom: -22rem; }
+    .hero-inner {
+      width: min(1040px, calc(100% - 36px));
+      margin: auto;
+      padding: clamp(40px, 7vw, 76px) 0 clamp(58px, 9vw, 100px);
+    }
+    .eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      margin: 0 0 17px;
+      color: #f9e4bd;
+      font-size: .85rem;
+      font-weight: 800;
+      letter-spacing: .12em;
+    }
+    .eyebrow::before {
+      content: "千";
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border: 1px solid #e3b870;
+      border-radius: 50%;
+      font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+      font-size: 1.05rem;
+      letter-spacing: 0;
+    }
+    h1, h2, h3, p { margin-top: 0; }
+    h1, h2, h3 { font-family: "Yu Mincho", "Hiragino Mincho ProN", serif; }
+    h1 {
+      margin-bottom: 18px;
+      font-size: clamp(2.5rem, 7vw, 4.7rem);
+      letter-spacing: .07em;
+      line-height: 1.18;
+    }
+    h1 span { color: #ffe0a0; }
+    .hero-lead {
+      max-width: 42rem;
+      margin: 0;
+      color: #fff5e8;
+      font-size: clamp(1rem, 2.2vw, 1.15rem);
+      line-height: 1.9;
+    }
+    main {
+      position: relative;
+      width: min(1040px, calc(100% - 36px));
+      margin: 32px auto 0;
+      padding-bottom: 52px;
+    }
+    .section {
+      margin-bottom: 38px;
+      scroll-margin-top: 18px;
+    }
+    .section-head { margin: 0 0 17px; }
+    .section-tag {
+      margin: 0 0 6px;
+      color: #86313a;
+      font-size: .74rem;
+      font-weight: 900;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+    }
+    .section h2 {
+      margin: 0 0 4px;
+      color: var(--wine);
+      font-size: clamp(1.55rem, 4vw, 2.05rem);
+      line-height: 1.4;
+    }
+    .section-intro { margin: 0; color: var(--muted); font-size: .93rem; }
+    .cards { display: grid; gap: 15px; }
+    .cards.customer { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .cards.staff { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .card {
+      display: flex;
+      flex-direction: column;
+      min-height: 220px;
+      padding: clamp(20px, 3.1vw, 28px);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--paper);
+      box-shadow: 0 13px 30px #5e2d1510;
+      text-decoration: none;
+      transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: #c89d69;
+      box-shadow: 0 19px 34px #5e2d1522;
+    }
+    .card.primary {
+      min-height: 256px;
+      border-color: #d8bc8f;
+      background: linear-gradient(140deg, #fffefa, #fff7e8);
+    }
+    .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .number {
+      display: grid;
+      place-items: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: #f5e5cf;
+      color: #77303a;
+      font-family: Georgia, serif;
+      font-size: .9rem;
+      font-weight: bold;
+    }
+    .role {
+      padding: 4px 9px;
+      border: 1px solid #e8d1ae;
+      border-radius: 999px;
+      color: #6a3a30;
+      background: #fff8eb;
+      font-size: .74rem;
+      font-weight: 800;
+      text-align: center;
+    }
+    .card h3 {
+      margin: 0 0 8px;
+      color: var(--wine);
+      font-size: clamp(1.3rem, 2.2vw, 1.68rem);
+      line-height: 1.4;
+    }
+    .card p { margin: 0 0 18px; color: var(--muted); font-size: .91rem; }
+    .card-cta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: auto;
+      padding-top: 14px;
+      border-top: 1px solid #ecdfce;
+      color: #7b222d;
+      font-weight: 900;
+    }
+    .card-cta::after { content: "→"; font-size: 1.3rem; line-height: 1; }
+    .staff-heading {
+      padding-top: 24px;
+      border-top: 1px solid #ddceb7;
+    }
+    .staff .card { min-height: 244px; }
+    .staff .card h3 { font-size: clamp(1.17rem, 1.8vw, 1.42rem); }
+    .note {
+      margin: 18px 0 0;
+      padding: 12px 16px;
+      border-left: 3px solid var(--gold);
+      border-radius: 0 9px 9px 0;
+      color: #534941;
+      background: #fdf7eb;
+      font-size: .84rem;
+      line-height: 1.75;
+    }
+    footer {
+      padding: 24px 18px max(24px, env(safe-area-inset-bottom));
+      color: #eee0d7;
+      background: #441820;
+      text-align: center;
+      font-size: .79rem;
+    }
+    footer p { margin: 0; }
+    @media (max-width: 760px) {
+      .cards.staff { grid-template-columns: 1fr; }
+      .staff .card { min-height: 0; }
+    }
+    @media (max-width: 620px) {
+      .cards.customer { grid-template-columns: 1fr; }
+      .card.primary { min-height: 222px; }
+      .hero-inner { padding-bottom: 74px; }
+      main { margin-top: 25px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .card { transition: none; }
+      .card:hover { transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#content">本文へ移動</a>
+  <header class="hero">
+    <div class="hero-inner">
+      <p class="eyebrow">千駄木二丁目商店街振興組合</p>
+      <h1>千駄木ちゃんこ祭り<br><span>クーポン案内</span></h1>
+      <p class="hero-lead">お手持ちのクーポンの表示から、使えるお店の確認まで。お探しのページをこちらから選んでください。</p>
+    </div>
+  </header>
+
+  <main id="content">
+    <section class="section section-primary" aria-labelledby="customer-heading">
+      <div class="section-head">
+        <p class="section-tag">For visitors</p>
+        <h2 id="customer-heading">お客様はこちら</h2>
+        <p class="section-intro">ちゃんこを購入された方が使うページです。</p>
+      </div>
+      <div class="cards customer">
+        <a class="card primary" href="coupon.html">
+          <div class="card-top"><span class="number" aria-hidden="true">01</span><span class="role">購入者向け</span></div>
+          <h3>マイクーポン</h3>
+          <p>購入時に受け取ったクーポンを、この端末で保存・表示できます。</p>
+          <span class="card-cta">クーポンを表示する</span>
+        </a>
+        <a class="card primary" href="stores.html">
+          <div class="card-top"><span class="number" aria-hidden="true">02</span><span class="role">どなたでも</span></div>
+          <h3>利用できる店舗・地図</h3>
+          <p>クーポンを使える加盟店を地図と一覧から探せます。</p>
+          <span class="card-cta">お店を探す</span>
+        </a>
+      </div>
+      <p class="note">クーポンは購入時のQRコードから開くと、この端末のブラウザに保存できます。端末やブラウザを変えると自動では引き継がれません。</p>
+    </section>
+
+    <section class="section" aria-labelledby="staff-heading">
+      <div class="section-head staff-heading">
+        <p class="section-tag">For staff</p>
+        <h2 id="staff-heading">関係者の方はこちら</h2>
+        <p class="section-intro">担当する業務に応じてページをお選びください。ログインが必要です。</p>
+      </div>
+      <div class="cards staff">
+        <a class="card" href="coupon-issue.html">
+          <div class="card-top"><span class="number" aria-hidden="true">03</span><span class="role">admin・manager</span></div>
+          <h3>クーポン発行</h3>
+          <p>購入者へ渡す新しいクーポンのQRコードを発行します。</p>
+          <span class="card-cta">発行ページを開く</span>
+        </a>
+        <a class="card" href="coupon-redeem.html">
+          <div class="card-top"><span class="number" aria-hidden="true">04</span><span class="role">加盟店・admin・manager</span></div>
+          <h3>QR確認・使用済み処理</h3>
+          <p>お客様のクーポンを確認し、利用時に使用済みにします。</p>
+          <span class="card-cta">確認ページを開く</span>
+        </a>
+        <a class="card" href="management.html">
+          <div class="card-top"><span class="number" aria-hidden="true">05</span><span class="role">manager専用</span></div>
+          <h3>総括管理サイト</h3>
+          <p>加盟店の登録や配布中クーポンの管理を行います。</p>
+          <span class="card-cta">管理ページを開く</span>
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <footer><p>千駄木ちゃんこ祭り｜千駄木二丁目商店街振興組合</p></footer>
+</body>
+</html>
