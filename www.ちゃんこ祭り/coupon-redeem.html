@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <meta name="theme-color" content="#4a1118">
-  <title>千駄木ちゃんこ祭り クーポン確認</title>
+  <title>千駄木二丁目商店街 クーポン確認</title>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" integrity="sha384-c9d8RFSL+u3exBOJ4Yp3HUJXS4znl9f+z66d1y54ig+ea249SpqR+w1wyvXz/lk+" crossorigin="anonymous"></script>
   <script src="staff-webauthn.js"></script>
   <style>
@@ -24,7 +24,7 @@
   </style>
 </head>
 <body>
-  <iframe id="couponApp" title="千駄木ちゃんこ祭り クーポン確認" allow="camera"></iframe>
+  <iframe id="couponApp" title="千駄木二丁目商店街 クーポン確認" allow="camera"></iframe>
   <button id="scanAgain" type="button" hidden>カメラで読み取る</button>
   <section id="cameraPanel" hidden aria-label="クーポンQR読み取り">
     <div class="panel">
@@ -157,7 +157,7 @@
       let code=value;
       try{const url=new URL(value);code=url.searchParams.get('c')||url.searchParams.get('coupon')||''}catch(error){}
       if(!/^[a-f0-9]{64}$/i.test(code)){
-        $('cameraError').textContent='ちゃんこクーポンのQRを読み取ってください。';
+        $('cameraError').textContent='クーポンのQRを読み取ってください。';
         return;
       }
       scanLocked=true;

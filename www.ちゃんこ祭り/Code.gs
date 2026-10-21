@@ -74,9 +74,9 @@ function doGet(e) {
     dashboard: ['Dashboard', '千駄木ちゃんこ祭り 回答状況'],
     management: ['ManagementApp', '千駄木二丁目町会商店街総括管理サイト'],
     stores: ['StoresApp', '千駄木二丁目町会 利用可能店舗'],
-    coupon_issue: ['CouponIssue', '千駄木ちゃんこ祭り クーポン発行'],
-    coupon_wallet: ['CouponWallet', '千駄木ちゃんこ祭り マイクーポン'],
-    coupon_redeem: ['CouponRedeem', '千駄木ちゃんこ祭り クーポン確認']
+    coupon_issue: ['CouponIssue', '千駄木二丁目商店街 クーポン発行'],
+    coupon_wallet: ['CouponWallet', '千駄木二丁目商店街 マイクーポン'],
+    coupon_redeem: ['CouponRedeem', '千駄木二丁目商店街 クーポン確認']
   };
   if (pages[page]) {
     return HtmlService
