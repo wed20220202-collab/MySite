@@ -4,6 +4,9 @@ const ADMIN_ID = 'admin';
 const ADMIN_SESSION_SECONDS = 21600;
 const MANAGER_ID = 'manager';
 const MANAGER_SESSION_SECONDS = 21600;
+const DEMO_ID = 'test';
+const DEMO_PASSWORD_SHA256 = 'ae5deb822e0d71992900471a7199d0d95b8e7c9d05c40a8245a281fd2c1d6684';
+const DEMO_SESSION_SECONDS = 21600;
 const MANAGER_LOGIN_RATE_KEY = 'manager-login-failures';
 const MANAGER_LOGIN_WINDOW_MS = 60000;
 const MANAGER_LOGIN_COOLDOWN_MS = 30000;
@@ -255,8 +258,53 @@ function managerLogin(id, password) {
 }
 
 function managerLogout(token) {
-  if (token) CacheService.getScriptCache().remove('manager:' + token);
+  if (token) {
+    const cache = CacheService.getScriptCache();
+    cache.remove('manager:' + token);
+    cache.remove('demo:' + token);
+  }
   return true;
+}
+
+/** A public, read-only tour of the management UI. This role never receives live DB data. */
+function managementLogin(id, password) {
+  if (String(id || '') !== DEMO_ID) return managerLogin(id, password);
+  if (!safeEqual_(sha256_(String(password || '')), DEMO_PASSWORD_SHA256)) {
+    return { ok: false, message: 'IDまたはパスワードが違います。' };
+  }
+  const token = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '');
+  CacheService.getScriptCache().put('demo:' + token, '1', DEMO_SESSION_SECONDS);
+  return { ok: true, token: token, role: 'demo' };
+}
+
+function isDemoSession_(token) {
+  const sessionToken = String(token || '');
+  if (!/^[a-f0-9]{64}$/.test(sessionToken)) return false;
+  const cache = CacheService.getScriptCache();
+  if (cache.get('demo:' + sessionToken) !== '1') return false;
+  cache.put('demo:' + sessionToken, '1', DEMO_SESSION_SECONDS);
+  return true;
+}
+
+function demoManagementData_() {
+  return {
+    demo: true,
+    stats: { active: 2, used: 5, invalid: 1, expired: 1, issued: 9 },
+    activeDigest: '',
+    activeCoupons: [
+      { couponId: 'DEMO-COUPON-001', amount: 100, issuedAt: 'サンプル', expiresAt: 'サンプル' },
+      { couponId: 'DEMO-COUPON-002', amount: 200, issuedAt: 'サンプル', expiresAt: 'サンプル' }
+    ],
+    pagination: { page: 1, pageSize: 50, totalPages: 1, total: 2 },
+    stores: [
+      { storeId: 'DEMO-STORE-001', name: 'サンプル商店（架空）', manager: '非表示', loginId: '非表示', hasLogin: false, address: '千駄木二丁目（サンプル）', published: true }
+    ],
+    auditLogs: [
+      { operatedAt: 'サンプル', action: '利用処理の例', couponId: 'DEMO-COUPON-000', amount: 100, previousStatus: '未使用', nextStatus: '使用済み', actor: 'サンプル店舗', result: '完了', note: 'この履歴は架空の例です。' }
+    ],
+    auditWarning: '',
+    fetchedAt: 'サンプルデータ（実際の運営状況ではありません）'
+  };
 }
 
 function getManagerSecurityKeyStatus(token) {
@@ -791,6 +839,7 @@ function merchantRecordFailure_(cache, key, now, limit, windowMs, cooldownMs) {
 }
 
 function getManagementData(token, page) {
+  if (isDemoSession_(token)) return demoManagementData_();
   requireManager_(token);
   const sheet = getCouponSheet_();
   ensureCouponHeaders_(sheet);
@@ -1054,7 +1103,8 @@ function revokeActiveCoupons(token, expectedCount, confirmation, expectedDigest)
   }
 }
 
-function setupCouponAuditProtection() {
+function setupCouponAuditProtection(token) {
+  requireManager_(token);
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
@@ -1067,7 +1117,8 @@ function setupCouponAuditProtection() {
   }
 }
 
-function setupCouponSystem() {
+function setupCouponSystem(token) {
+  requireManager_(token);
   const sheet = getCouponSheet_();
   ensureCouponHeaders_(sheet);
   return { ok: true, sheetName: sheet.getName(), columns: COUPON_HEADERS.length };
@@ -1901,7 +1952,7 @@ function formatDate_(value, timeZone) {
   return Utilities.formatDate(date, timeZone, 'yyyy/MM/dd HH:mm:ss');
 }
 
-function setup() {
+function setup_() {
   const sheet = getResponseSheet_();
   ensureHeaders_(sheet);
 }

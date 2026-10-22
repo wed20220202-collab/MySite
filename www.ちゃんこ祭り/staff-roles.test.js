@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
+const PNG_1PX = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/eXcAAAAASUVORK5CYII=';
 
 class Range {
   constructor(sheet, row, column, height, width) {
@@ -104,6 +105,8 @@ function fixture() {
     },
     Utilities: {
       getUuid: () => crypto.randomUUID(),
+      base64Decode: (value) => Array.from(Buffer.from(value, 'base64')),
+      base64Encode: (bytes) => Buffer.from(bytes.map((byte) => (byte + 256) % 256)).toString('base64'),
       computeDigest: (_algorithm, value) => Array.from(crypto.createHash('sha256').update(value).digest()),
       computeHmacSha256Signature: (value, key) => Array.from(crypto.createHmac('sha256', key).update(value).digest()),
       DigestAlgorithm: { SHA_256: 'SHA_256' },
@@ -121,7 +124,7 @@ function fixture() {
   return { app, coupons, stores, cache };
 }
 
-test('management stays manager-only, issuing accepts admin and manager but not merchant', () => {
+test('live management stays manager-only, issuing accepts admin and manager but not merchant', () => {
   const { app, coupons } = fixture();
   const admin = app.issueLogin('admin', 'AdminStrong#2026');
   const manager = app.issueLogin('manager', 'ManagerStrong#2026');
@@ -172,4 +175,60 @@ test('scanner accepts all roles, enforces one use and preserves merchant-only ol
   app.redeemLogout(merchant.token);
   assert.equal(app.restoreRedeemSession(merchant.token).ok, false);
   assert.throws(() => app.lookupCouponForStaff(merchant.token, second.couponId), /SESSION_EXPIRED/);
+});
+
+test('management demo login is separate from manager and returns only fictional data without database access', () => {
+  const { app, coupons, stores, cache } = fixture();
+  assert.equal(app.managementLogin('test', 'wrong').ok, false);
+  assert.equal(app.managementLogin('other', 'testuser').ok, false);
+  assert.equal(app.managerLogin('test', 'testuser').ok, false);
+  assert.equal(app.issueLogin('test', 'testuser').ok, false);
+
+  const demo = app.managementLogin('test', 'testuser');
+  assert.equal(demo.ok, true);
+  assert.equal(demo.role, 'demo');
+  assert.match(demo.token, /^[a-f0-9]{64}$/);
+  assert.equal(cache.get('demo:' + demo.token), '1');
+
+  const before = JSON.stringify([coupons.rows, stores.rows]);
+  app.SpreadsheetApp.openById = () => { throw new Error('Demo must not access the live spreadsheet'); };
+  const data = app.getManagementData(demo.token, 1);
+  assert.equal(data.demo, true);
+  assert.equal(data.activeDigest, '');
+  assert.ok(data.activeCoupons.every((coupon) => coupon.couponId.startsWith('DEMO-')));
+  assert.ok(data.stores.every((store) => store.storeId.startsWith('DEMO-')));
+  assert.ok(data.auditLogs.every((log) => log.couponId.startsWith('DEMO-')));
+  assert.equal(JSON.stringify(data).includes('test-shop'), false);
+  assert.equal(JSON.stringify(data).includes('テスト加盟店'), false);
+  assert.equal(JSON.stringify([coupons.rows, stores.rows]), before);
+
+  app.managerLogout(demo.token);
+  assert.equal(cache.has('demo:' + demo.token), false);
+  assert.throws(() => app.getManagementData(demo.token, 1), /SESSION_EXPIRED/);
+});
+
+test('management demo token cannot call any privileged mutation or staff/profile API', () => {
+  const { app, coupons, stores } = fixture();
+  const token = app.managementLogin('test', 'testuser').token;
+  const before = JSON.stringify([coupons.rows, stores.rows]);
+  app.SpreadsheetApp.openById = () => { throw new Error('Demo must not access the live spreadsheet'); };
+
+  assert.throws(() => app.saveStore(token, {
+    name: '変更不可', manager: '変更不可', loginId: 'demo-shop', password: 'StrongPassword#2026'
+  }), /SESSION_EXPIRED/);
+  assert.throws(() => app.revokeActiveCoupons(token, 0, '全件無効化', '0'.repeat(64)), /SESSION_EXPIRED/);
+  assert.throws(() => app.setupCouponSystem(token), /SESSION_EXPIRED/);
+  assert.throws(() => app.setupCouponAuditProtection(token), /SESSION_EXPIRED/);
+  assert.equal(typeof app.setup_, 'function');
+  assert.equal(app.setup, undefined);
+  assert.throws(() => app.issueCoupon(token, { amount: 100, expiresOn: '2030-01-01' }), /SESSION_EXPIRED/);
+  assert.throws(() => app.redeemCouponByStaff(token, 'SNDG-20300101-AAAAAAAA'), /SESSION_EXPIRED/);
+  assert.throws(() => app.lookupCouponForStaff(token, 'SNDG-20300101-AAAAAAAA'), /SESSION_EXPIRED/);
+  assert.throws(() => app.saveAccountProfileImage(token, PNG_1PX), /SESSION_EXPIRED/);
+  assert.throws(() => app.removeAccountProfileImage(token), /SESSION_EXPIRED/);
+  assert.throws(() => app.getAccountProfile(token), /SESSION_EXPIRED/);
+  assert.throws(() => app.getManagerSecurityKeyStatus(token), /SESSION_EXPIRED/);
+  assert.equal(app.restoreIssueSession(token).ok, false);
+  assert.equal(app.restoreRedeemSession(token).ok, false);
+  assert.equal(JSON.stringify([coupons.rows, stores.rows]), before);
 });

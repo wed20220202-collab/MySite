@@ -30,8 +30,9 @@ test('staff pages restore tokens from tab storage and keep role-specific endpoin
   const management = fs.readFileSync(path.join(__dirname, 'ManagementApp.html'), 'utf8');
   const issue = fs.readFileSync(path.join(__dirname, 'coupon-issue-app.html'), 'utf8');
   const redeem = fs.readFileSync(path.join(__dirname, 'coupon-redeem-app.html'), 'utf8');
-  assert.match(management, /managerLogin/);
+  assert.match(management, /managementLogin/);
   assert.match(management, /getManagementData/);
+  assert.match(management, /閲覧専用デモ/);
   assert.match(issue, /issueLogin/);
   assert.match(issue, /restoreIssueSession/);
   assert.match(redeem, /redeemLogin/);
